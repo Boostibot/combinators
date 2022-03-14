@@ -1,0 +1,95 @@
+@content-width--header: 36cm;
+@content-width--main: 29cm;
+@content-width--footer: 33cm;
+@content-width--extended: 36cm;
+@content-width--norm: @content-width--main;
+
+@snap-threshold--min: 250px;
+@snap-threshold--0_1: 450px;
+@snap-threshold--0_2: 600px;
+@snap-threshold--0_3: 675px;
+@snap-threshold--0_4: 750px;
+@snap-threshold--0_5: 800px;
+@snap-threshold--0_6: 850px;
+@snap-threshold--0_7: 900px;
+@snap-threshold--0_8: 950px;
+@snap-threshold--0_9: 1050px;
+@snap-threshold--max: 1150px;
+@snap-threshold--norm: @snap-threshold--0_4;
+
+@screen-edge-distance--max: 1cm;
+@screen-edge-distance--0_4: (@screen-edge-distance--max / 2);
+@screen-edge-distance--0_2: (@screen-edge-distance--max / 4);
+@screen-edge-distance--min: (@screen-edge-distance--max / 8);
+@screen-edge-distance--norm: @screen-edge-distance--max;
+
+@default-spacing--image: 1rem;
+@default-spacing--column: 2rem;
+@default-spacing--content: 3rem;
+@default-spacing--section: 4rem;
+@default-spacing--floating_header: 0rem;
+
+@text-size--min: 0.5rem;
+@text-size--0_2: 0.6rem;
+@text-size--0_4: 0.75rem;
+@text-size--0_6: 1rem;
+@text-size--0_8: 1.25rem;
+@text-size--max: 1.5rem;
+@text-size--norm: @text-size--0_6;
+
+@title-size--min: 0.9rem;     
+@title-size--0_1: 1rem;    
+@title-size--0_2: 1.25rem;    
+@title-size--0_3: 1.5rem;   
+@title-size--0_4: 1.75rem;   
+@title-size--0_5: 2rem;     
+@title-size--0_6: 2.5rem;     
+@title-size--0_8: 3rem;     
+@title-size--0_9: 4rem;     
+@title-size--max: 5rem;
+@title-size--norm: @title-size--0_6;
+
+@text-weight--hairline: 200;
+@text-weight--light: 300;
+@text-weight--roman: 400;
+@text-weight--medium: 500;
+@text-weight--demi: 600;
+@text-weight--bold: 700;
+@text-weight--black: 900;
+@text-weight--norm: @text-weight--roman;
+
+@letter-spacing--min: -0.04em;
+@letter-spacing--0_5: normal;
+@letter-spacing--max: 0.04em;
+@letter-spacing--norm: @letter-spacing--0_5;
+
+@line-height--min: 1;
+@line-height--0_3: 1.15;
+@line-height--0_6: 1.45;
+@line-height--max: 1.85;
+@line-height--norm: @line-height--0_3;
+
+@transition--circular: cubic-bezier(.79,.14,.15,.86);
+@transition--snap-in: cubic-bezier(.12,.48,.48,.98);
+@transition--norm: @transition--snap-in;
+
+@color--off-page: #1a1a1a;
+@color--background: #1a1a1a;
+@color--separator: #333333;
+@color--aside-background: #171717;
+@color--graphic: #979797;
+@color--error: #ff5400;
+@color--action: #0060df;
+@color--highlight: #ffffff;
+@color--diminish: #5d5d5d;
+@color--additional: #f5f9fc;
+@color--substitution: #464646;
+@color--white: #ffffff;
+@color--black: #000000;
+
+@filter--any_to_white: saturate(0%) brightness(2000%);
+@filter--any_to_black: brightness(0) saturate(100%);
+@filter--reset: invert(0%);
+
+@filter--white: @filter--any_to_white;
+@filter--black: @filter--any_to_black;

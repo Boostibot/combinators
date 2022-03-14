@@ -1,0 +1,301 @@
+.body {
+    display: table;
+    border-collapse: collapse;
+}
+
+.header, 
+.main, 
+.footer {
+    display: table-row;
+}
+
+.main {
+    background-color: @color--background;
+
+    &::before {
+        content: "";
+        display: block;
+        padding-top: @default-spacing--floating_header;
+    }
+
+    &::after {
+        content: "";
+        display: block;
+        padding-bottom: @default-spacing--section;
+    }
+}
+
+.width_limit {
+    &          {max-width: @content-width--norm;}
+    &.extended {max-width: @content-width--extended;}
+    .header &  {max-width: @content-width--header;}
+    .main   &  {max-width: @content-width--main;}
+    .footer &  {max-width: @content-width--footer;}
+}
+
+.screen_padding {
+    padding: 0 @screen-edge-distance--norm;
+
+    @media only screen and (max-width: @snap-threshold--0_4) {
+        padding: 0 @screen-edge-distance--0_4;
+    }
+
+    @media only screen and (max-width: @snap-threshold--0_2) {
+        padding: 0 @screen-edge-distance--0_2;
+    }
+    
+    @media only screen and (max-width: @snap-threshold--min) {
+        padding: 0 @screen-edge-distance--min;
+    }
+}
+
+.limit_box {
+    &:extend(.screen_padding all);
+    &:extend(.width_limit all);
+}
+
+.hide_when(@size) {
+    @media only screen and (max-width: @size - 1) {
+        display: none;
+    }
+}
+
+.show_when(@size) {
+    @media only screen and (min-width: @size) {
+        display: none;
+    }
+}
+
+.hide_when--max {.hide_when(@snap-threshold--max - 1);}
+.hide_when--0_1 {.hide_when(@snap-threshold--0_1 - 1);}
+.hide_when--0_2 {.hide_when(@snap-threshold--0_2 - 1);}
+.hide_when--0_3 {.hide_when(@snap-threshold--0_3 - 1);}
+.hide_when--0_4 {.hide_when(@snap-threshold--0_4 - 1);}
+.hide_when--0_5 {.hide_when(@snap-threshold--0_5 - 1);}
+.hide_when--0_6 {.hide_when(@snap-threshold--0_6 - 1);}
+.hide_when--0_7 {.hide_when(@snap-threshold--0_7 - 1);}
+.hide_when--0_8 {.hide_when(@snap-threshold--0_8 - 1);}
+.hide_when--0_9 {.hide_when(@snap-threshold--0_9 - 1);}
+.hide_when--min {.hide_when(@snap-threshold--min - 1);}
+
+.show_when--max {.show_when(@snap-threshold--max);}
+.show_when--0_1 {.show_when(@snap-threshold--0_1);}
+.show_when--0_2 {.show_when(@snap-threshold--0_2);}
+.show_when--0_3 {.show_when(@snap-threshold--0_3);}
+.show_when--0_4 {.show_when(@snap-threshold--0_4);}
+.show_when--0_5 {.show_when(@snap-threshold--0_5);}
+.show_when--0_6 {.show_when(@snap-threshold--0_6);}
+.show_when--0_7 {.show_when(@snap-threshold--0_7);}
+.show_when--0_8 {.show_when(@snap-threshold--0_8);}
+.show_when--0_9 {.show_when(@snap-threshold--0_9);}
+.show_when--min {.show_when(@snap-threshold--min);}
+
+.title_traits {
+    font-weight: @text-weight--bold;
+}
+
+.text_traits {
+    line-height: @line-height--norm;
+}
+
+.date {
+    font-weight: @text-weight--bold;
+    font-size: @text-size--norm;
+}
+
+.link {
+    .unstyled_link();
+
+    &:hover,
+    &:focus {
+        color: @color--highlight;
+    }
+}
+
+.button {
+    .unstyled_button();
+    .text_traits();
+
+    font-weight: @text-weight--bold;
+    background-color: @color--highlight;
+    color: @color--background;
+
+    padding: 0.7em 1.8em;
+    padding-bottom: 0.5em;
+
+    &:hover,
+    &:focus {
+        color: @color--white;
+        background-color: @color--action;
+    }
+}
+
+.input {
+    .text_traits();
+    
+    padding: 0.4rem;
+    padding-bottom: 0.2rem;
+    border: 0;
+    border-radius: 0;
+
+    &::placeholder {
+        color: @color--diminish;
+    }
+}
+
+@list_style_width: 1em;
+@list_style_offset: @list_style_width * 2;
+.ordered_list, .unordered_list {
+    margin-top: 1em;
+    list-style: none; 
+
+    li {
+        margin-top: 0.4em;
+
+        &::before {
+            width: @list_style_width;
+            margin-left: -@list_style_width;
+            color: @color--highlight;
+            display: inline-block; 
+        }
+    }
+}
+
+.ordered_list {
+    padding-left: @list_style_width;
+    counter-reset: list_counter;
+
+    li {
+        counter-increment: list_counter;
+    }
+    li::before {
+        content: counter(list_counter); 
+    }
+}
+
+.unordered_list {
+    padding-left: @list_style_width * 2; //counter is 2em so the margin is larger
+
+    li::before {
+        content: "";
+        background-image: url('../img/circle--highlight.svg');
+        background-repeat: no-repeat;
+        font-size: 2em;
+        height: 0.3em;
+    }
+}
+
+.horizontal_separator {
+    color: @color--separator;
+    width: 100%;
+    height: 1px;
+    margin: 1em 0;
+    border: 0;
+}
+
+.default_icon {
+    .size(1.3em);
+    display: inline-block;
+    vertical-align: middle;
+    object-fit: contain;
+}
+
+
+//MMyriad pro values:
+
+// @font_bold_cap_to_top_height: 0.14em;
+// @font_bold_baseline_height: 0.33em;
+// @font_bold_before_space: 0.06em;
+
+// @font_regular_baseline_height: 0.12em;
+// @font_regular_before_space: 0.03em;
+
+//For line-height: 1.15
+@font_bold_cap_to_top_height: 0.25em;
+@font_bold_baseline_height: 0.185em;
+@font_bold_before_space: 0.09em;
+
+@font_regular_baseline_height: 0.185em;
+@font_regular_before_space: 0.06em;
+
+.vertical_rl() {
+    font-size: @title-size--main;
+    font-weight: @text-weight--bold;
+
+    margin: 0;
+
+    //If nothing text -> sideways
+    writing-mode: tb-rl; //for IE
+    writing-mode: vertical-rl;
+    text-align: right;
+    margin-bottom: -@font_bold_before_space;
+    margin-right: -@font_bold_cap_to_top_height;
+ 
+    //If supports supports and thus even text sideways -> rotates it
+    // (if this wasnt in place no suport for sideways text would 
+    //  leave it upside down... not ideal)
+    @supports (not (writing-mode: sideways-lr)) {
+        text-align: left;
+        margin-right: -@font_bold_baseline_height;
+        .transform(rotate(180deg));
+    }
+
+    //If supports everything overrides previous and applies default right text
+    @supports (writing-mode: sideways-lr) {
+        text-align: left;
+        writing-mode: sideways-lr;
+        margin-right: -@font_bold_baseline_height; 
+    }
+
+}
+
+.fill_placeholder_frame {
+    position: relative;
+
+    &::before {
+        &:extend(.fill_space_absolute_position);
+        content: ""
+    }
+}
+
+.fill_image_placeholder {
+    .fill_placeholder_frame();
+
+    &::before {
+        background-color: @color--substitution;
+    }
+}
+
+.element_placeholder_traits {
+    display: table;
+
+    &::before {      
+        content: "";
+        display: table-caption;
+        padding: 0;
+        width: 0;
+        height: 0;
+    }
+}
+
+//How to use
+/*
+<div class="box">
+    <div class="placeholder>
+        <img>
+    </div>
+</div>
+
+.box {
+    overflow: hidden;
+}
+
+.placeholder {
+    &:extend(.element_placeholder_traits all);
+
+    &::before {      
+        .placeholder_dimensions(15rem, 30rem);
+        background-color: red;
+    }
+}
+*/

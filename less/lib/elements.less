@@ -1,0 +1,54 @@
+*,
+*:after,
+*:before {
+    .prefix_property(box-sizing, border-box, webkit, moz);
+}
+
+html {
+    word-break: break-word;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    
+    .prefix_property(hyphens, auto, webkit, ms);
+}
+
+body, html {
+    overflow-x: hidden;
+    width: 100%;
+    height: 100%;
+}
+
+video {
+    display: block;
+}
+
+div, 
+article, 
+section {
+    &:extend(.no_spacing);
+}
+
+table {
+    &:extend(.unstyled_table);
+}
+
+ol, ul {
+    &:extend(.unstyled_list);
+}
+
+button {
+    &:extend(.unstyled_button);
+}
+
+select {
+    &:extend(.unstyled_select);
+}
+
+img {
+    &:extend(.unstyled_image);
+}
+
+//Removes firefox default ugly inside focus on buttons and such 
+// (would be kept even though custom one is provided)
+:focus {outline:none;}
+::-moz-focus-inner {border:0;}

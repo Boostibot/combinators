@@ -1,0 +1,163 @@
+@import "variables";
+@import "mixins";
+
+.fill_space {
+    width: 100%;
+    height: 100%;
+}
+
+.fill_space_absolute_position {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+}
+
+.no_spacing {
+    margin: 0;
+    padding: 0;
+}
+
+.centered {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.unstyled_image {
+    display: block;
+    
+    width: 100%;
+    height: auto;
+
+    max-width: 100%;
+    max-height: 100%;
+    
+    object-fit: contain;
+    object-position: top left;
+}
+
+.unstyled_link {
+    text-decoration: none;
+    color: inherit;
+}
+
+.unstyled_list {
+    padding-left: 0;
+    margin: 0;
+
+    list-style-position: outside;
+    list-style-type: none;
+}
+
+.unstyled_button {
+    border: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+    background: none;
+    text-align: start;
+    outline: inherit;
+}
+
+.unstyled_table {
+    border: 0;
+    padding: 0;
+    border-collapse: collapse;
+
+    th {
+        text-align: left;
+    }
+}
+
+.unstyled_select {
+    .prefix_property(appearance, none, webkit, moz);
+    border: 0;
+
+    //Hide arrow on IE 10/11
+    &::-ms-expand {
+        display: none; 
+    }
+}
+
+.frame {
+    position: relative;
+}
+
+.picture {
+    position: absolute;
+    .fill_space();
+}
+
+//Used to completely hode fill blocks of arrays, collection, galleries etc.
+//
+//Note:
+// fill blocks are added to the ends of these collection to keep elements properly sized
+// ie. not have the last elemnt stretch over the remaining space. 
+// This is very useful for responsive layouts without the use of any media queries.
+//
+// Consider following layout:
+// [elem] [elem] [elem] 
+// [elem - stretches!-]
+// 
+// with fillers
+// [elem] [elem] [elem] 
+// [elem] [fill] [fill]
+// [ ----- fill ----- ] <-- has height of 0 so is not visible
+
+.collection_padding {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+.vertical_collection_padding {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+.section {
+    width: 100%;
+    overflow: hidden;
+}
+
+.vertical_fill {
+    display: inline-block;
+    vertical-align: bottom;
+    height: 100%;
+    width: 0px;
+}
+
+
+//Centers any child element within
+.centerer {
+    .fill_space();
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.limit_box {
+    &:extend(.centered);
+    overflow: hidden;
+}
+
+//Inline image within text
+.icon {
+    .size(1em);
+    display: inline-block;
+    vertical-align: baseline;
+    object-fit: contain;
+}
+
+.screen_readers_only, .sr_only {
+    position:absolute;
+    top:auto;
+    left:-10000px;
+    width:1px;
+    height:1px;
+    overflow:hidden;
+}

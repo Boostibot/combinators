@@ -1,0 +1,68 @@
+@import "global";
+
+html {
+    color: @color--white;
+    background-color: @color--background;
+
+    font-weight: @text-weight--norm;
+    letter-spacing: @letter-spacing--norm;
+    line-height: @line-height--norm;
+}
+
+.default_style {    
+    h1, h2, h3, h4, h5, h6 {
+        &:extend(.title_traits all);
+        margin-top: 1em;
+        margin-bottom: 0.3em;
+    }
+    
+    h1 {font-size: @title-size--max;}
+    h2 {font-size: @title-size--0_8;}
+    h3 {font-size: @title-size--0_6;}
+    h4 {font-size: @title-size--0_4;}
+    h5 {font-size: @title-size--0_2;}
+    h6 {font-size: @title-size--min;}
+    
+    h1 + time,
+    h2 + time,
+    h3 + time,
+    h4 + time,
+    h5 + time,
+    h6 + time {
+        margin-top: -1em;
+    }
+    
+    a { 
+        &:extend(.link all);
+    }
+
+    th {
+        &:extend(.title_traits all);
+        font-size: @title-size--0_4;
+    }
+    
+    hr {
+        &:extend(.horizontal_separator all);
+    }
+
+    p, ul, ol {
+        margin-bottom: 0;
+    }
+
+    time {
+        &:extend(.date all);
+    }
+
+    ol { 
+        &:extend(.ordered_list all);
+    }
+
+    ul { 
+        &:extend(.unordered_list all);
+    }
+
+    button {        
+        &:extend(.button all);
+        margin-top: 1em;
+    }
+}
