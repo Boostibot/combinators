@@ -15,14 +15,17 @@ function import_main(lib)
         const output = query.single(selector.data_id('output'));
         const checkbox = query.single(selector.data_id('show_parse'));
 
-        try 
+        // try 
         {
             const parsed = parsers.parse(input.value);
             if(parsed.error)
-                throw new Error(`Parser error at index ${parsed.index}: ${parsed.shared.input.slice(parsed.index - 5, 20)}...`);
+                throw new Error(parsed.singular.errorInfo);
             
             if(checkbox.checked)
+            {
+                console.log(parsed);
                 output.textContent = parsers.formatToken(parsed.result);
+            }
             else
             {
                 const evaluated = parsers.evaluate(parsed.result);
@@ -30,9 +33,9 @@ function import_main(lib)
                 output.textContent = sringified;
             }
         }
-        catch(error)
+        // catch(error)
         {
-            output.textContent = 'ERROR: ' + error.message;
+            // output.textContent = 'ERROR: ' + error.message;
         }
     }
 

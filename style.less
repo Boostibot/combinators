@@ -23,6 +23,10 @@
     font-family: "Chivo", 'Arial', 'sans-serif';
 }
 
+.limit_box {
+    max-width: min(29cm, 100vw) !important;
+}
+
 html {
     &:extend(.crimson);
     font-size: 13pt;
@@ -54,10 +58,14 @@ html {
         overflow-y: auto;
 
         padding: 1rem;
+        white-space: pre;
+        overflow-x: auto;
     }
 
     &__input {
         color: @color--white;
         resize: none;
+        border: none;
+        margin-top: 1.5rem;
     }
 }

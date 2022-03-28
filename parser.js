@@ -1,161 +1,69 @@
 function import_combinators(lib) 
 {
     const obj = lib.object;
+    const assert = lib.debug.assert;
 
-    const updateParserState = (state, result = state.result, index = state.index, error = state.error) => {
-        return {
-            index: index,
-            result: result,
-            error: error,
-            shared: state.shared,
-            singular: obj.copy(state.singular),
+    const updateParserState = (state, result = state.result, index = state.index, error = state.error) => ({
+        index: index,
+        result: result,
+        error: error,
+        shared: state.shared,
+        singular: obj.copy(state.singular),
+    });
+
+    const updateParserResult = (state, result, index = state.index) => ({
+        index: index,
+        result: result,
+        error: state.error,
+        shared: state.shared,
+        singular: obj.copy(state.singular),
+    });
+
+    const updateParserError = (state, error) => ({
+        index: state.index,
+        result: state.result,
+        error: error,
+        shared: state.shared,
+        singular: obj.copy(state.singular),
+    });
+
+    const makeParserState = (input, shared = {}, singular = {}) => {
+        const state = {
+            index: 0,
+            result: null,
+            error: 0,
+            shared: shared,
+            singular: singular,
         };
+
+        state.shared.input = input;
+        return state;
     };
 
-    const updateParserResult = (state, result, index = state.index) => {
-        return {
-            index: index,
-            result: result,
-            error: state.error,
-            shared: state.shared,
-            singular: obj.copy(state.singular),
-        };
-    };
-
-    const updateParserError = (state, error) => {
-        return {
-            index: state.index,
-            result: state.result,
-            error: error,
-            shared: state.shared,
-            singular: obj.copy(state.singular),
-        };
-    };
-
-    const pushResult = (results, result) => {
+    const pushDefaultResult = (results, result) => {
         if(result !== undefined)
             results.push(result);
     };
+    
+    const append = (to, appended) => {
+        const from = to.length;
+        to.length = from + addedResults.length;
+        for(let i = 0; i < addedResults.length; i++)
+            to[i + from] = addedResults[i];
 
-    class Parser 
-    {
-        constructor(parse) {
-            this.parse = parse;
-        }
-
-        run(input) {
-            const initialState = {
-                index: 0,
-                result: null,
-                error: 0,
-                shared: {
-                    input: input
-                }
-            };
-
-            return this.parse(initialState);
-        }
-
-        map(fn) {
-            return new Parser((prevState) => {
-                const nextState = this.parse(prevState);
-                return fn(nextState, prevState);
-            });
-        }
-        
-        mapResult(fn) {
-            return this.map((state, prevState) => {
-                if(state.error)
-                    return state;
-
-                //since any parser copies we dont have to
-                state.result = fn(state.result, state, prevState);
-                return state;
-            });
-        }
-        
-        mapError(fn) {
-            return this.map((state, prevState) => {
-                if(!state.error)
-                    return state;
-
-                state.error = fn(state.error, state, prevState);
-                return state;
-            });
-        }
-
-        chain(fn) {
-            return new Parser(state => {
-                const nextState = this.parse(state);
-
-                if(nextState.error)
-                    return nextState;
-
-                const nextParser = fn(state.result, nextState, state);
-                return nextParser.parse(nextState);
-            });
-        }
-
-        discard() {
-            return this.mapResult(_ => undefined);
-        }
-
-        maybe() {
-            return this.map(state => {
-                state.error = 0;
-                return state;
-            });
-        }
-        
-        ignore() {
-            return this.map(state => {
-                state.result = undefined;
-                state.error = 0;
-                return state;
-            });
-        }
-    }
- 
-    const ParserId = {
-        PARSER_SEQUENCE: 1,
-        MANY: 2,
-        REPEAT: 3,
-        LEAST: 4,
-        CHOICE: 5,
-        CATEGORY: 6,
-        SLICE: 7,
-        REGEX: 8,
-        TOKEN_SEQUENCE: 9,
-        SINGLE: 10,
-        SEQUENCE: 11,
-        BETWEEN: 12,
-        SEPARATED: 13,
-        EACH: 14,
-        FURTHEST: 15,
-        GREEDY: 16,
-        LAZY: 17,
-        STRING: 18,
-        MANY1: 19,
-        CATEGORY1: 20,
-        SEPARATED1: 21,
-        ANY: 22,
-        SUCCEED: 23,
-        FAIL: 24,
-        SINGLE_CATEGORY: 25,
+        return to;
     };
 
-    const shiftParserIds = parserIds => {
-        for(const name in parserIds)
-            parserIds[name] = parserIds[name] << 16;
+    const join = (left, right) => append(least.slice(0), right);
+
+    const pushFlatResult = (results, addedResults) => {
+        if(Array.isArray(addedResults))
+            append(results, addedResults);
+        else if(addedResults !== undefined)
+            results.push(addedResults);
     };
 
-    shiftParserIds(ParserId);
-
-    const parserSequnce = parsers => new Parser(state => {
-        if(state.error)
-            return state;
-
-        const results = [];
+    const __appendParserResults = (state, parsers, results, pushResult) => {
         let nextState = state;
 
         for (let parser of parsers)
@@ -168,9 +76,227 @@ function import_combinators(lib)
         }
 
         return updateParserResult(nextState, results);
+    };
+    
+    class Parser 
+    {
+        constructor(parse, additional = {}) {
+            this.parse = parse;
+
+            for(const prop in additional)
+                this[prop] = additional[prop];
+        }
+
+        run(input, shared = {}, singular = {}) {
+            return this.parse(makeParserState(input, shared, singular));
+        }
+
+        copyProperties(parse) {
+            const created = new Parser(parse);
+            
+            for(const prop in this)
+                if (this.hasOwnProperty(prop) && prop != "parse") 
+                    created[prop] = this[prop];
+            
+            return created;
+        }
+
+        map(fn) {
+            return this.copyProperties(prevState => {
+                const nextState = this.parse(prevState);
+                return fn(nextState, prevState);
+            });
+        }
+        
+        mapResult(fn) {
+            return this.copyProperties(prevState => {
+                const nextState = this.parse(prevState);
+                if(nextState.error)
+                    return nextState;
+
+                //since any parser copies we dont have to
+                nextState.result = fn(nextState.result, nextState, prevState);
+                return nextState;
+            });
+        }
+        
+        mapError(fn) {
+            return this.copyProperties(prevState => {
+                const nextState = this.parse(prevState);
+                if(!nextState.error)
+                    return nextState;
+
+                nextState.error = fn(nextState.error, nextState, prevState);
+                return nextState;
+            });
+        }
+
+        chain(fn) {
+            return this.copyProperties(state => {
+                const nextState = this.parse(state);
+
+                if(nextState.error)
+                    return nextState;
+
+                const nextParser = fn(state.result, nextState, state);
+                return nextParser.parse(nextState);
+            });
+        }
+
+        discard() {
+            return this.map(state => {state.result = undefined; return state;});
+        }
+
+        keep() {
+            return this.map(state => {state.error = 0; return state;});
+        }
+
+        maybe() {
+            return this.map(state => {
+                if(state.error)
+                {
+                    state.error = 0;
+                    state.result = undefined;
+                }
+                return state;
+            });
+        }
+        
+        ignore() {
+            return this.map(state => {
+                state.result = undefined;
+                state.error = 0;
+                return state;
+            });
+        }
+
+        append(parser, pushResult = pushDefaultResult) {
+            if(Array.isArray(parser))
+                return this.map(state => {
+                    if(state.error)
+                        return error;
+
+                    return __appendParserResults(state, parser, state.result, pushResult);
+                });
+
+            return this.map(state => {
+                if(state.error)
+                    return error;
+
+                const nextState = parser.parse(state);
+                if(nextState.error)
+                    return nextState;
+
+                const nextResult = nextState.result;
+                nextState.result = state.result;
+                pushResult(nextState.result, nextResult);
+
+                return nextState;
+            });
+        }
+    }
+ 
+    const PARSER_ID = {};
+    const PROPERTIES = {};
+    const ERROR_KIND = {
+        EOF: 1 << 16 - 1
+    };
+
+
+    const format = lib.debug.format;
+
+    const locationMsg = (state) => {
+        // const range = 2;
+        // const sliced = state.shared.input.slice(state.index - range, state.index + range);
+        // return `(${state.index}: ${format(sliced)})`;
+        return `(${state.index})`;
+    };
+
+    const errorKind = error => error & (0xFFFF);
+    const errorCaller = error => error >> 16;
+
+    const defaultHandler = (error, state, retrieved) => {
+        let nameMsg = `${retrieved.name}(${errorCaller(error)})`;
+        let errorMsg = `#${errorKind(error)}`;
+        let locMsg = locationMsg(state);
+
+        if(state.composition)
+            nameMsg += ` |${format(state.composition)}|`;
+
+        if(errorKind(error) == ERROR_KIND.EOF)
+            errorMsg = 'EOF';
+
+        if(Object.keys(state.singular).length)
+            locMsg += ` (${format(state.singular)})`;
+
+        return nameMsg + ': ' + errorMsg + ' ' + locMsg;
+    };
+
+    const registerParser = (nameIdPair, parser, handler = defaultHandler, ids = PARSER_ID, properties = PROPERTIES) => {
+        let name;
+        let id;
+        if(typeof(nameIdPair) === "string")
+            name = nameIdPair;
+        else
+        {
+            const entries = Object.entries(nameIdPair);
+            assert(entries.length > 0);
+            [name, id] = entries[0];
+        }
+
+        assert(name !== undefined);
+        if(id === undefined)
+            id = Object.keys(properties).length + 1;
+
+        id <<= 16;
+        ids[name] = id;
+        properties[id] = {parser, handler, name};
+    };
+    
+    const registerHandler = (nameIdPair, handler = defaultHandler, ids = PARSER_ID, properties = PROPERTIES) => {
+        return registerParser(nameIdPair, null, handler, ids, properties);
+    };
+
+    const errorInfo = (parser, properties = PROPERTIES) => parser.mapError((error, state) => {
+        const retrieved = properties[error];
+        if(retrieved !== undefined)
+            state.singular.errorInfo = retrieved.handler(error, state, retrieved);
+
+        return error;
+    });
+    
+
+    const parserSequnce = (parsers, pushResult = pushDefaultResult) => new Parser(state => {
+        if(state.error)
+            return state;
+
+        const results = [];
+        return __appendParserResults(state, parsers, results, pushResult);
     });
 
-    const manyRegular = (parser) => new Parser(state => {
+    const skip = parser => new Parser(state => {
+        if(state.error)
+            return state;
+
+        let lastState = state;
+        while(true)
+        {
+            const currState = parser.parse(lastState);
+            if(currState.error)
+                break;
+
+            lastState = currState;
+        }
+
+        return updateParserResult(lastState, undefined);
+    });
+    const skip1 = parser => skip(parser).map((state, lastState) => {
+        if(state.index === lastState.index)
+            state.error = PARSER_ID.SKIP;
+        return state;
+    });
+
+    const manyRegular = (parser, pushResult = pushDefaultResult) => new Parser(state => {
         if(state.error)
             return state;
 
@@ -189,7 +315,7 @@ function import_combinators(lib)
         return updateParserResult(lastState, results);
     });
     
-    const manyChain = (parser, inspection) => new Parser(state => {
+    const manyChain = (parser, inspection, pushResult = pushDefaultResult) => new Parser(state => {
         if(state.error)
             return state;
 
@@ -213,14 +339,14 @@ function import_combinators(lib)
         return updateParserResult(lastState, results);
     });
 
-    const many = (parser, inspection = undefined) => {
+    const many = (parser, inspection = undefined, pushResult = pushDefaultResult) => {
         if(inspection === undefined)
-            return manyRegular(parser);
+            return manyRegular(parser, pushResult);
         else
-            return manyChain(parser, inspection);
+            return manyChain(parser, inspection, pushResult);
     };
 
-    const repeat = (times, parser) => new Parser(state => {
+    const repeat = (times, parser, pushResult = pushDefaultResult) => new Parser(state => {
         if(state.error)
             return state;
 
@@ -240,10 +366,9 @@ function import_combinators(lib)
         return updateParserResult(nextState, results);
     });
 
-    // state.error = `Unable to match with any inputs at index ${state.index}`;
     const least = parser => parser.map(state => {
         if(state.result.length === 0)
-            state.error = ParserId.LEAST;
+            state.error = PARSER_ID.LEAST;
         
         return state;
     });
@@ -258,9 +383,8 @@ function import_combinators(lib)
             if(!nextState.error)
                 return nextState;
         }
-        
-        // return updateParserError(state, `Unable to match with any parser at index ${state.index}`);
-        return updateParserError(state, ParserId.CHOICE);
+
+        return updateParserError(state, PARSER_ID.CHOICE);
     });
 
     const category = cat => new Parser(state => {
@@ -286,12 +410,10 @@ function import_combinators(lib)
         const shared = state.shared;
         const index = state.index;
         if(index >= shared.input.length)
-            return updateParserError(state, ParserId.SINGLE_CATEGORY);
-            // return updateParserError(state, `Could not match ${format(seq)}: Unexpected end of shared`);
+            return updateParserError(state, PARSER_ID.SINGLE_CATEGORY + ERROR_KIND.EOF);
         
         if(!(shared.input[index] in cat))
-            return updateParserError(state, ParserId.SINSINGLE_CATEGORYGLE + 1);
-            // return updateParserError(state, `Tried to match sequence ${format(token)} but got ${format(shared.slice(index, index + 5))}`);
+            return updateParserError(state, PARSER_ID.SINSINGLE_CATEGORYGLE);
         
         return updateParserResult(state, token, index + 1);
     });
@@ -306,8 +428,7 @@ function import_combinators(lib)
         if(sliced === s)
             return updateParserResult(state, s, index + s.length);
         
-        // return updateParserError(state, `Tried to match ${format(s)} but got ${format(sliced.slice(0, s.length + 5))}`);
-        return updateParserError(state, ParserId.SLICE);
+        return updateParserError(state, PARSER_ID.SLICE);
     });
 
     const regex = (reg, max_offset = undefined) => new Parser(state => {
@@ -318,13 +439,11 @@ function import_combinators(lib)
         const index = state.index;
         const sliced = max_offset ? shared.input.slice(index, index + max_offset) : shared.input.slice(index);
         if(sliced.length === 0)
-            return updateParserError(state, ParserId.REGEX);
-        // return updateParserError(state, `Could not match ${format(reg)}: Unexpected end of shared`);
+            return updateParserError(state, PARSER_ID.REGEX + ERROR_KIND.EOF);
 
         const match = sliced.match(reg);
         if(!match)
-        return updateParserError(state, ParserId.REGEX + 1);
-        // return updateParserError(state, `Tried to match regex ${format(reg.toString())} but got ${format(sliced.slice(0, 10))}`);
+        return updateParserError(state, PARSER_ID.REGEX + 1);
 
         return updateParserResult(state, match[0], index + match[0].length);
     });
@@ -337,14 +456,12 @@ function import_combinators(lib)
         const index = state.index;
         const end = index + seq.length;
         if(shared.input.length < end)
-            return updateParserError(state, ParserId.TOKEN_SEQUENCE);
-            // return updateParserError(state, `Could not match ${format(seq)}: Unexpected end of shared`);
+            return updateParserError(state, PARSER_ID.TOKEN_SEQUENCE + ERROR_KIND.EOF);
 
         for(let i = 0; i < seq.length; i++)
         {
             if(seq[i] !== shared.input[index + i])
-            return updateParserError(state, ParserId.TOKEN_SEQUENCE + 1);
-            // return updateParserError(state, `Tried to match sequence ${format(seq)} but got ${format(shared.slice(index, end + 5))}`);
+            return updateParserError(state, PARSER_ID.TOKEN_SEQUENCE);
         }
         
         return updateParserResult(state, seq, end);
@@ -357,12 +474,10 @@ function import_combinators(lib)
         const shared = state.shared;
         const index = state.index;
         if(index >= shared.input.length)
-            return updateParserError(state, ParserId.SINGLE);
-            // return updateParserError(state, `Could not match ${format(seq)}: Unexpected end of shared`);
+            return updateParserError(state, PARSER_ID.SINGLE + ERROR_KIND.EOF);
         
         if(shared.input[index] !== token)
-            return updateParserError(state, ParserId.SINGLE + 1);
-            // return updateParserError(state, `Tried to match sequence ${format(token)} but got ${format(shared.slice(index, index + 5))}`);
+            return updateParserError(state, PARSER_ID.SINGLE);
         
         return updateParserResult(state, token, index + 1);
     });
@@ -382,7 +497,7 @@ function import_combinators(lib)
     const fail = (error = undefined) => 
     {
         if(error === undefined)
-            error = ParserId.FAIL;
+            error = PARSER_ID.FAIL;
         return new Parser(state => {
             return updateParserError(state, error);
         });
@@ -395,19 +510,18 @@ function import_combinators(lib)
         const shared = state.shared;
         const index = state.index;
         if(index >= shared.input.length)
-            return updateParserError(state, ParserId.ANY);
-            // return updateParserError(state, `Could not match ${format(seq)}: Unexpected end of shared`);
+            return updateParserError(state, PARSER_ID.ANY_SINGLE + ERROR_KIND.EOF);
         
         return updateParserResult(state, shared.input[index], index + 1);
     });
 
-    const sequence = seq => {
+    const sequence = (seq, pushResult = pushDefaultResult) => {
         if(seq.length > 0 && 
            typeof(seq[0]) == "object" && 
            seq[0].constructor.name == "Parser")
-            return parserSequnce(seq);
+            return parserSequnce(seq, pushResult);
         else
-            return tokenSequence(seq);
+            return tokenSequence(seq, pushResult);
     };
 
     const between = (left, right) => parser => parserSequnce([
@@ -416,7 +530,7 @@ function import_combinators(lib)
         right
     ]).mapResult(results => results[1]);
     
-    const separated = separator => parser => new Parser(state => {
+    const separated = separator => (parser, pushResult = pushDefaultResult) => new Parser(state => {
         if(state.error)
             return state;
 
@@ -439,7 +553,7 @@ function import_combinators(lib)
         return updateParserResult(nextState, results);
     });
 
-    const separatedTrailing = separator => parser => new Parser(state => {
+    const separatedTrailing = separator => (parser, pushResult = pushDefaultResult) => new Parser(state => {
         if(state.error)
             return state;
 
@@ -464,6 +578,7 @@ function import_combinators(lib)
         return updateParserResult(nextState, results);
     });
 
+
     const paralel = parsers => new Parser(state => {
         if(state.error)
             return state;
@@ -483,17 +598,21 @@ function import_combinators(lib)
             return state;
 
         let furthestState = parsers[0].parse(state);
+        let furthestIndex = furthestState.error ? state.index : furthestState.index;
         for(let i = 1; i < parsers.length; i++)
         {
             const last = parsers[i].parse(state);
-            if(!last.error && last.index > furthestState.index)
+            if(!last.error && last.index > furthestIndex)
+            {
                 furthestState = last;
+                furthestIndex = last.index;
+            }
         }
 
         return updateParserState(furthestState);
     });
     
-    const greedy = parsers => new Parser(state => {
+    const greedy = (parsers, pushResult = pushDefaultResult) => new Parser(state => {
         if(state.error)
             return state;
 
@@ -520,7 +639,7 @@ function import_combinators(lib)
             pushResult(results, next_state.result);
         }
         
-        return updateParserState(next_state, results);
+        return updateParserResult(next_state, results);
     });
 
     const lazy = parserThunk => new Parser(state => {
@@ -529,23 +648,57 @@ function import_combinators(lib)
     });
 
     const string = slice;
-    const many1 = (parser, inspection = undefined) => least(many(parser, inspection));
-    const category1 = parser => least(category(parser));
-    const separated1 = separator => parser => least(separated(separator)(parser));
+    const many1 = (parser, inspection = undefined, pushResult = pushDefaultResult) => least(many(parser, inspection));
+    const category1 = (parser, pushResult = pushDefaultResult) => least(category(parser, pushResult));
+    const separated1 = separator => (parser, pushResult = pushDefaultResult) => least(separated(separator)(parser, pushResult));
     
     const lettersReg = /^[A-Za-z_]+/;
     const identifiersReg = /^[a-zA-Z_]+[a-zA-Z0-9_]*/;
     const digitsReg = /^[0-9]+/;
+    const decimalReg = /^\d*\.?\d+/;
     const whitespacesReg = /^\s+/;
 
     const letters = (max_offset = undefined) => regex(lettersReg, max_offset);
     const identifiers = (max_offset = undefined) => regex(identifiersReg, max_offset);
     const digits = (max_offset = undefined) => regex(digitsReg, max_offset);
+    const decimal = (max_offset = undefined) => regex(decimalReg, max_offset);
     const whitespace = (max_offset = undefined) => regex(whitespacesReg, max_offset);
+  
+    registerParser("PARSER_SEQUENCE", errorInfo);
+    registerParser("PARSER_SEQUENCE", parserSequnce);
+    registerParser("SKIP", skip);
+    registerParser("SKIP1", skip1);
+    registerParser("MANY_REGULAR", manyRegular);
+    registerParser("MANY_CHAIN", manyChain);
+    registerParser("MANY", many);
+    registerParser("REPEAT", repeat);
+    registerParser("LEAST", least);
+    registerParser("CHOICE", choice);
+    registerParser("CATEGORY", category);
+    registerParser("SINGLE_CATEGORY", singleCategory);
+    registerParser("MANY_REGULAR", slice);
+    registerParser("REGEX", regex);
+    registerParser("TOKEN_SEQUENCE", tokenSequence);
+    registerParser("SINGLE", single);
+    registerParser("SUCCEED", succeed);
+    registerParser("FAIL", fail);
+    registerParser("ANY_SINGLE", anySingle);
+    registerParser("SEQUENCE", sequence);
+    registerParser("BETWEEN", between);
+    registerParser("SEPARATED", separated);
+    registerParser("SEPARATED_TRAILING", separatedTrailing);
+    registerParser("PARALEL", paralel);
+    registerParser("FURTHEST", furthest);
+    registerParser("GREEDY", greedy);
+    registerParser("LAZY", lazy);
 
     return {
         Parser,
+        errorInfo,
         parserSequnce,
+        append,
+        skip,
+        skip1,
         many,
         least,
         choice,
@@ -563,6 +716,7 @@ function import_combinators(lib)
         letters,
         identifiers,
         digits,
+        decimal,
         whitespace,
         separated,
         separatedTrailing,
@@ -573,293 +727,91 @@ function import_combinators(lib)
         furthest,
         greedy,
         anySingle,
+        succeed,
+        fail,
         updateParserState,
         updateParserResult,
         updateParserError,
-        pushResult,
-        ParserId,
-        succeed,
-        fail,
-    };
-}
-
-{
-    const IDS = {};
-    const PROPERTIES = {};
-
-    const getId = (fn, ids = IDS) => ids[fn.name];
-    const getPropeties = (id, properties = PROPERTIES) => properties[id];
-
-    const errorInfo = (parser, properties = PROPERTIES) => parser.mapError((error, state) => {
-        const retrieved = getPropeties(error, properties);
-        if(retrieved === undefined)
-            state.singular.errorInfo = undefined;
-        else
-            state.singular.errorInfo = retrieved.handler(state);
-
-        return error;
-    });
-
-    const registerParser = (parser, handler, info = {}, name = parser.name, collection = {ids: IDS, properties: PROPERTIES}) => 
-    {
-        if(collection.ids.length > (1 << 16))
-            throw new Error("Max of 65536 parsers allowed");
-
-        const addedId = collection.ids.length << 16;
-        collection.ids[parser.name] = addedId;
-        collection.properties[addedId] = {name: name, parser: parser, handler: handler, info: info};
+        pushDefaultResult,
+        pushFlatResult,
+        defaultHandler,
+        registerParser,
+        registerHandler,
+        PARSER_ID,
+        PROPERTIES,
+        ERROR_KIND,
     };
 }
 
 function import_parsers(lib)
 {
     const c = import_combinators(lib);
+    const mtx = importMatrix();
+    const assert = lib.debug.assert;
 
-    const stringToCategory = string => {
-        let ret = {};
-        for(let i = 0; i < string.length; i++)
-            ret[string[i]] = null;
-
-        return ret;
-    };
-
-    const cat = {
-        DECIMAL: stringToCategory(".0123456789"),
-    };
-
-    const paired = 'paired';
-    const unary = 'unary';
-    const mixed = 'mixed';
-    const implicit = 'implicit';
-
-    const opRow = (pairity, typeSimetric, types) => {
-
-        const addKeyPair = (obj, from, to) => {
-            if(!(from in obj))
-                row.types[from] = {};
-
-            row.types[from][to] = null;
-        };
-
-        const row = {pairity: pairity, types: {}};
-        for(const from of Object.keys(types))
-        {
-            const to = types[from];
-            
-            if(Array.isArray(to))
-            {
-                for(const toSingle of to)
-                {
-                    addKeyPair(row.types, from, toSingle);
-                    if(typeSimetric)
-                        addKeyPair(row.types, toSingle, from);
-                }
-            }
-            else if(to && typeof(to) === 'object')
-                continue;
-            else
-            {
-                addKeyPair(row.types, from, to);
-                if(typeSimetric)
-                    addKeyPair(row.types, to, from);
-            }
-        }
-
-        return row;
-    };
-
-    const operators = {
-        '+': opRow(mixed, true, {'num': 'num', 'matrix': 'matrix'}),
-        '-': opRow(mixed, true, {'num': 'num', 'matrix': 'matrix'}),
-        '*': opRow(mixed, true, {'num': ['num', 'matrix'], 'matrix': ['num', 'matrix']}),
-        '/': opRow(paired, true, {'num': 'num', 'matrix': ['num', 'matrix']}),
-        '^': opRow(paired, true, {'num': 'num', 'matrix': 'num'}),
-        '%': opRow(paired, true, {'num': 'num', 'matrix': 'matrix'}),
-        '!': opRow(unary, true, {'num': 'num'}),
-        '~': opRow(unary, true, {'num': 'num'}),
-        '^|': opRow(paired, true, {'num': 'num'}),
-        '<<': opRow(paired, true, {'num': 'num'}),
-        '>>': opRow(paired, true, {'num': 'num'}),
-        
-        '&&': opRow(paired, true, {'num': 'num'}),
-        '||': opRow(paired, true, {'num': 'num'}),
-        
-        '++': opRow(paired, true, {'num': 'num'}),
-        '--': opRow(paired, true, {'num': 'num'}),
-        
-        ':=': opRow(paired, false, {'unset': ['num', 'array', 'matrix']}),
-        '=': opRow(paired, false, {'num': 'num', 'array': 'array', 'matrix': 'matrix'}),
-        '+=': opRow(paired, true, {'num': 'num', 'matrix': 'matrix'}),
-        '-=': opRow(paired, true, {'num': 'num', 'matrix': 'matrix'}),
-        '*=': opRow(paired, false, {'num': 'num', 'matrix': ['num', 'matrix']}),
-        '/=': opRow(paired, false, {'num': 'num', 'matrix': 'num'}),
-        '^=': opRow(paired, true, {'num': 'num', 'matrix': 'num'}),
-        '%=': opRow(paired, true, {'num': 'num'}),
-        '&=': opRow(paired, true, {'num': 'num'}),
-        '|=': opRow(paired, true, {'num': 'num'}),
-        '^|=': opRow(paired, true, {'num': 'num'}),
-        '<<=': opRow(paired, true, {'num': 'num'}),
-        '>>=': opRow(paired, true, {'num': 'num'}),
-
-        '==': opRow(paired, true, {'num': 'num', 'array': 'array', 'matrix': 'matrix'}),
-        '!=': opRow(paired, true, {'num': 'num', 'array': 'array', 'matrix': 'matrix'}),
-        '>': opRow(paired, true, {'num': 'num'}),
-        '<': opRow(paired, true, {'num': 'num'}),
-        '>=': opRow(paired, true, {'num': 'num'}),
-        '<=': opRow(paired, true, {'num': 'num'}),
-
-        //TODO
-        '?': opRow(paired, true, {'unset': 'unset'}),
-        ':': opRow(paired, true, {'unset': 'unset'}),
-    };
-
-    const isOperatorDefined = (op, left, right) => 
-    {
-        const properties = operators[op];
-
-        const fromType = properties.types[left];
-        if(fromType === undefined)
-            return false;
-
-        return fromType[right] !== undefined;
-    };
-
-    c.ParserId.TOKEN = 500;
-    c.ParserId.EXPR_SEQUENCE = 501;
-    c.ParserId.MATCH_OPERATORS = 502;
-    c.ParserId.EXPR_PARSER = 503;
-
-    const makeToken = (type, value = null, ib = 0, ie = 0) => ({type: type, value: value, ib: ib, ie: ie});
-
-
-
-    const isToken = (token) => {
-        return (typeof(token) === 'object') && (token !== null) && ('ib' in token) && ('type' in token) && ('value' in token);
-    };
-
-    const formatToken = (token, newline = '\n', offsetWith = '   ', padTypeTo = 0, padSizeTo = 0, offsetLevel = 0) =>
-    {
-        if(!token)
-            return '';
-
-        const type = `'${token.type}'`.padEnd(padTypeTo);
-        const size = `(${token.ib}, ${token.ie})`.padEnd(padSizeTo);
-
-        const isT = isToken(token.value);
-        const isA = Array.isArray(token.value);
-
-        if(!isT && !isA)
-            return `{${type} ${size} : ${lib.debug.format(token.value)}}`;
-            
-        const offset = offsetWith.repeat(offsetLevel);
-        const formatSingle = (token) => offset + offsetWith + formatToken(token, newline, offsetWith, 0, 0, offsetLevel + 1);
-
-        if(isT)
-            return `{${type} ${size} : {..}}${newline + formatSingle(token.value)}`;
-
-        if(isA)
-        {
-            if(token.value.length === 0)
-                return `{${type} ${size} : []}`;
-
-            if(token.value.length === 1)
-                return `{${type} ${size} : [..]}${newline + formatSingle(token.value[0])}`;
-
-            let maxTypeLen = 0;
-            let maxSizeLen = 0;
-            for(const value of token.value)
-            {
-                if(value.type.length > maxTypeLen)
-                    maxTypeLen = value.type.length;
-
-                const combined = value.ib.toString().length + value.ie.toString().length;
-                if(combined > maxSizeLen)
-                    maxSizeLen = combined;
-            }
-
-            //Because of formating
-            maxTypeLen += 2;
-            maxSizeLen += 4;
-
-            let accumulated = `{${type} ${size}} : [` + newline;
-            const ender = ',' + newline;
-            const greaterOffset = offset + offsetWith;
-            for(const value of token.value)
-                accumulated += greaterOffset + formatToken(value, newline, offsetWith, maxTypeLen, maxSizeLen, offsetLevel + 1) + ender;
-
-            accumulated += offset + ']';
-            return accumulated;    
-        }    
-
-    };
-
-    const toToken = (type, parser) => parser.map((state, lastState) => {
-        if(!state.error)
-        {
-            const result = state.result;
-            const lasti = lastState.index;
-            state.result = makeToken(type, result, lasti, lasti + result.length);
-        }
-
-        return state;
-    });
-
-    const reportState = (name, parser) => parser.map(state => {
-        // if(state.error)
-            // console.log(`${name}: FAIL`);
-
-        // console.log(`${name}: SUCCESS`);
-        return state;
-    });
+    c.registerHandler({TOKEN: 500});
+    c.registerHandler({EXPR_SEQUENCE: 501});
+    c.registerHandler({MATCH_OPERATORS: 502});
+    c.registerHandler({EXPR_PARSER: 503});
+    c.registerHandler({FUNCTION_PARSER: 504});
+    c.registerHandler({OPERATOR: 505});
 
     const last = array => array[array.length - 1];
-
-    const makeOperatorValue = (category, result) => ({category: category, value: result});
+    const makeToken = (type, val = null, ib = 0, ie = 0) => ({type: type, val: val, ib: ib, ie: ie});
+    const makeOperatorValue = (category, result) => ({category: category, val: result});
     const makeOperator = (category, result, ib, ie) => makeToken("operator", makeOperatorValue(category, result), ib, ie);
 
-    const generateOperatorParsers = (operators) => {
-        const parsers = [];
-        for(const [op, row] of Object.entries(operators))
-        {
-            const parser = c.slice(op).mapResult(result => makeOperatorValue(row.pairity, result));
-            parsers.push(parser);
-        }
+    const OPERATORS = [
+        '+', '-', '*', '/', '^', '%', '++', '--',
+        '!', '&&', '||', 
+        '~', '&', '|', '^|', '<<', '>>',
+        ':=', '=', '+=', '-=', '*=', '/=', '^=', '%=', '&=', '|=', '^|=', '<<=', '>>=', 
+        '?', ':', '..', '...', '[]'
+    ];
 
-        return parsers;
+    const generateOperatorParsers = (operators = OPERATORS) => {
+        return operators.map(op => {
+            return c.slice(op).mapResult(result => {
+                return makeOperatorValue("explicit", result);
+            });
+        });
     };
 
-    const operatorParsers = () => c.furthest(generateOperatorParsers(operators));
+    const toTokenParser = (type, parser) => parser.mapResult((result, state, lastState) => {
+        return makeToken(type, result, lastState.index, state.index);
+    });
 
+    const operatorParsers = () => c.furthest(generateOperatorParsers());
+    
     const tokenizer = c.greedy([
-        toToken("space", c.whitespace()),
-        toToken("id", c.identifiers()),
-        toToken("operator", operatorParsers()),
-        toToken("roundB", c.single('(')),
-        toToken("roundB", c.single(')')),
-        toToken("squareB", c.single('[')),
-        toToken("squareB", c.single(']')),
-        toToken("curlyB", c.single('{')),
-        toToken("curlyB", c.single('}')),
-        toToken("comma", c.single(',')),
-        toToken("semicol", c.single(';')),
-        toToken("decimal", c.category1(cat.DECIMAL)),
-        // c.anySingle().mapResult((result, state) => {
-        //     const tokenizeErrors = state.shared.tokenizeErrors;
-        //     if(tokenizeErrors === undefined)
-        //         state.shared.tokenizeErrors = {last: }
-        // })
-    ]);
+        toTokenParser("space", c.whitespace()),
+        toTokenParser("id", c.identifiers()),
+        toTokenParser("operator", operatorParsers()),
+        toTokenParser("roundB", c.single('(')),
+        toTokenParser("roundB", c.single(')')),
+        toTokenParser("squareB", c.single('[')),
+        toTokenParser("squareB", c.single(']')),
+        toTokenParser("curlyB", c.single('{')),
+        toTokenParser("curlyB", c.single('}')),
+        toTokenParser("comma", c.single(',')),
+        toTokenParser("semicol", c.single(';')),
+        toTokenParser("decimal", c.decimal()),
+        toTokenParser("error", c.anySingle())
+    ]).mapResult((results, state) => {
+        results.push(makeToken("eof", null, state.index - 1, state.index));
+        return results;
+    });
 
-    const token = (type, value = undefined) => {
-        if(value !== undefined)
+    const token = (type, val = undefined) => {
+        if(val !== undefined)
             return new c.Parser(state => 
             {
                 const index = state.index;
                 const token = state.shared.input[index];
-                if(token != undefined && (token.type === type && token.value === value))
+                if(token != undefined && (token.type === type && token.val === val))
                     return c.updateParserResult(state, token, index + 1);
 
-                return c.updateParserError(state, c.ParserId.TOKEN);
+                return c.updateParserError(state, c.PARSER_ID.TOKEN);
             });
         
         return new c.Parser(state => 
@@ -870,25 +822,35 @@ function import_parsers(lib)
             if(token != undefined && (token.type === type))
                 return c.updateParserResult(state, token, index + 1);
 
-            return c.updateParserError(state, c.ParserId.TOKEN);
+            return c.updateParserError(state, c.PARSER_ID.TOKEN);
         });
     };
 
-    const filterWhitespace = () => toToken("filtered", c.many(c.anySingle().mapResult((result, state, lastState) => {
-        if(result.type === "space")
-            return undefined;
-        
-        return makeToken(result.type, result.value, lastState.index, state.index);
-    })));
+    const fromRawTokens = () => toTokenParser("filtered", c.many(
+        c.choice([
+            c.skip1(token("error")).mapResult((_, state, lastState) => {
+                const stream = state.shared.input;
+                const text = state.shared.text;
+                
+                assert(lastState.index < stream.length && lastState.index > 0);
+                assert(state.index - 1 < stream.length && state.index - 1 > 0);
 
-    const classify = (type, parser) => parser.map((state, lastState) => {
-        if(state.error)
-        {
-            // console.log(`${type}: FAIL`);
-            return state;
-        }
-        // console.log(`${type}: SUCCESS`);
-    
+                const begin = stream[lastState.index].ib;
+                const end = stream[state.index - 1].ie;
+                
+                return makeToken("error", text.slice(begin, end), lastState.index, state.index);
+            }),
+            
+            c.anySingle().mapResult((result, state, lastState) => {
+                if(result.type === "space")
+                    return undefined;
+                
+                return makeToken(result.type, result.val, lastState.index, state.index);
+            })
+        ])
+    ));
+
+    const classifyToken = (type, state, lastState) => {
         const result = state.result;
         const lasti = lastState.index;
         const nexti = state.index;
@@ -900,9 +862,10 @@ function import_parsers(lib)
             return state;
         }
 
-        const bToken = state.shared.input[lasti];
+        const stream = state.shared.input;
+        const bToken = stream[lasti];
         if(nexti >= inputLen)
-            state.result = makeToken(type, result, bToken.ib, inputLen);
+            state.result = makeToken(type, result, bToken.ib, last(stream).ie);
         else if(nexti === lasti)
             state.result = makeToken(type, result, bToken.ib, bToken.ie);
         else
@@ -912,10 +875,24 @@ function import_parsers(lib)
         }
 
         return state;
-    });
+    };
 
-    const separated = (type, value = undefined) => c.separated(token(type, value));
-    const separatedTrailing = (type, value = undefined) => c.separatedTrailing(token(type, value));
+    const name = (composition, parser) => new c.Parser(state => {
+        state.name = composition;
+        return parser.parse(state);
+    }, {name: composition});
+
+    const classify = (composition, parser) => new c.Parser(state => {
+        state.name = composition;
+        const nextState = parser.parse(state);
+        if(nextState.error)
+            return nextState;
+
+        return classifyToken(composition, nextState, state);
+    }, {name: composition});
+
+    const separated = (type, val = undefined) => c.separated(token(type, val));
+    const separatedTrailing = (type, val = undefined) => c.separatedTrailing(token(type, val));
     const betweenBrackets = (type, begin, end) => c.between(token(type, begin), token(type, end));
     const commaSeparated = separatedTrailing('comma');
     const semicolSeparated = separatedTrailing('semicol');
@@ -923,26 +900,31 @@ function import_parsers(lib)
     const betweenCurlyBrackets = betweenBrackets('curlyB', '{', '}');
     const betweenRoundBrackets = betweenBrackets('roundB', '(', ')');
 
-    const valueParser = reportState("value", c.choice([
+    const valueParser = name("val", c.choice([
         token("decimal"),
         token("id"),
     ]));
 
-    const listValue = reportState("listVal", c.lazy(() => c.furthest([
-        valueParser,
+    const listValue = name("listVal", c.lazy(() => c.choice([
+        name("listValRace", c.furthest([
+            functionParser,
+            valueParser,
+            exprParser,
+        ])),
+
         matrixParser,
         arrayParser,
         parensParser,
         scopeParser,
-        exprParser,
     ])));
     
     const matrixRowParser = classify("matrixRow", c.lazy(() => c.many1(
         listValue
     )));
 
-    const operatorOrListValue = reportState("opOrlistVal", c.lazy(() => c.choice([
+    const operatorOrListValue = name("opOrlistVal", c.lazy(() => c.choice([
         token("operator"),
+        functionParser,
         valueParser,
         matrixParser,
         arrayParser,
@@ -952,178 +934,317 @@ function import_parsers(lib)
 
     const areAdjecent = (token1, token2) => token1.ie === token2.ib;
 
+    //REFACTOR
     const exprParser = classify("expression", c.lazy(() => c.many1(
         operatorOrListValue,
         (state, results) => {
             const lastToken = last(results);
-            const result = state.result;
-            if(lastToken != undefined && lastToken.type !== "operator" && result.type !== "operator")
+            const currToken = state.result;
+            if(lastToken == undefined || lastToken.type === "operator" || currToken.type === "operator")
+                return operatorOrListValue;
+
+            if(currToken.type === "array")
             {
-                //Array front inplicit multiplication is dissallowed (needed to distinguish between
-                // element access and array multiplication)
-                if(areAdjecent(lastToken, result) && result.type != "array")
-                {
-                    const implicitMultiply = makeOperator("implicit", "*", result.ib, result.ib);
-                    results.push(implicitMultiply);
-                }
-                else
-                    state.error = c.ParserId.EXPR_PARSER;
+                results.push(makeOperator("implicit", "[]", currToken.ib, currToken.ib));
+                return operatorOrListValue;
             }
-            
+
+            if(!areAdjecent(lastToken, currToken))
+            {
+                state.error = c.PARSER_ID.EXPR_PARSER;
+                return operatorOrListValue;
+            }
+
+            if(lastToken.type === "decimal" || currToken.type === "decimal" || //left right numbers allowed
+               currToken.type !== "array" ||  //not array subscript
+               (lastToken.type !== "id" && currToken.type !== "parens")) //not function call
+                results.push(makeOperator("implicit", "*", currToken.ib, currToken.ib));
+            else
+                state.error = c.PARSER_ID.EXPR_PARSER;
+
             return operatorOrListValue;
         }
     )));
+    
+    const lineValue = name("lineValue", c.lazy(() => c.sequence([
+        listValue.maybe(),
+        token("semicol").discard()
+    ])));
 
-    //this choice will never fail but if it ends with semicol
-    // adds a void value in the end ie: 
-    // {0; 0; 0;} -> {0; 0; 0; void}
-    // {0; 0; 0} -> {0; 0; 0}
-    const sequenceValue = c.lazy(() => c.choice([
-        listValue,
-        c.succeed(makeToken("void"))
-    ]));
+    const scopeValue = name("scopeValue", c.lazy(() => 
+        name("scopeValueMany", c.many(c.choice([
+            scopeParser,
+            lineParser,
+        ]))).append(listValue.maybe())
+    ));
 
-    const scopeValue = c.lazy(() => c.choice([
-        scopeParser,
-        sequenceParser,
-    ]));
-
-    const sequenceParser = classify("sequence", semicolSeparated(sequenceValue).map(state => {
-        if(state.result[0].type === "void")
-            state.error = c.ParserId.EXPR_SEQUENCE;
-
-        return state;
-    }));
-
+    const lineParser = classify("line", lineValue);
     const parensParser = classify("parens", betweenRoundBrackets(listValue).mapResult(result => [result]));
     const arrayParser =  classify("array", betweenSquareBrackets(commaSeparated(listValue)));
     const matrixParser =  classify("matrix", betweenSquareBrackets(betweenSquareBrackets(commaSeparated(matrixRowParser))));
-    const scopeParser =  classify("scope", betweenCurlyBrackets(c.many(scopeValue)));
+    const scopeParser =  classify("scope", betweenCurlyBrackets(scopeValue));
+    const functionParser = classify("function", c.sequence([
+        token("id"),
+        classify("args", betweenRoundBrackets(commaSeparated(listValue)))
+    ]));
 
-    
+    const scriptParser = classify("script", c.errorInfo(scopeValue.append(token("eof").discard())));
+
     const parse = (input) =>
     {
         const tokens = tokenizer.run(input);
-        const noWhitespace = filterWhitespace().run(tokens.result);
-        const filtered = scopeValue.run(noWhitespace.result.value);
-        return filtered;
+        console.log(tokens);
+        const filtered = fromRawTokens().run(tokens.result, {text: input});
+        console.log(filtered);
+        // return filtered;
+        const parsed = scriptParser.run(filtered.result.val);
+        return parsed;
     };
+  
 
-    const makeValue = (type, value = null) => ({type: type, value: value});
-    const makeVoidValue = () => makeToken("void");
-    const makeUnsetValue = () => makeValue("unset", null);
+    //FUNCTIONS
+    const FUNCTIONS = {};
+    const castLookup = (from, to) => `%cast(${from},${to})`;
 
-    const makeScopeContext = (outer = {local: {}, outer: {}}) => {
-        const outerCombined = Object.assign({}, outer.outer);
-        Object.assign(outerCombined, outer.local);
-
-        return {local: {}, outer: outerCombined};
-    }; 
-
-    const scopeGet = (scope, what) => {
-        const local = scope.local[what];
-        if(local !== undefined)
-            return local;
-        
-        return scope.outer[what];
-    };
-    
-    const scopeSet = (scope, what, value) => {
-        scope.local[what] = value;
-    };
-
-    const copy = object => lib.object.copy(object);
-
-    const add = (left, right) => {
-        if(left.type == 'matrix')
-            return matrixAddMatrix(left, right);
-        
-        return makeValue("num", left.value + right.value);
-    };
-
-    const sub = (left, right) => {
-        if(left.type == 'matrix')
-        {
-            const negative = matrixMulVal(right, -1);
-            return matrixAddMatrix(left, negative);
-        }
-        
-        return makeValue("num", left.value - right.value);
-    };
-
-    const mul = (left, right) => {
-        const lt = left.type;
-        const rt = right.type;
-
-        if(lt == 'matrix' && rt == 'matrix')
-            return matrixMulMatrix(left, right);
-
-        if(lt == 'num' && rt == 'matrix')
-            return matrixMulVal(right, left.value);
-        
-        if(lt == 'matrix' && rt == 'num')
-            return matrixMulVal(left, right.value);
-        
-        return makeValue("num", left.value * right.value);
-    };
-    
-    const div = (left, right) => {
-        const lt = left.type;
-        const rt = right.type;
-
-        if(lt == 'matrix' && rt == 'num')
-            return matrixMulVal(left, 1 / right.value);
-        
-        return makeValue("num", left.value / right.value);
-    };
-
-    const arrayToPlain = array => {
-        const arrayRes = [];
-
-        for(const val of array.value)
-            arrayRes.push(toPlain(val));
-
-        return arrayRes;
-    }; 
-
-    const matrixToPlain = matrix => {
-        const matrixRes = [];
-
-        for(const rows of matrix.value)
-        {
-            const rowRes = [];
-            for(const col of rows)
-                rowRes.push(col.value);
-
-            matrixRes.push(rowRes);
-        }
-
-        return matrixRes;
-    };
-
-    
-    const toPlain = (token) => {
-        if(token.type === 'matrix')
-            return matrixToPlain(token);
-        if(token.type === 'array')
-            return arrayToPlain(token);
+    const addFunctionPack = (lookup, pack, functions = FUNCTIONS) => {
+        if(functions[lookup] === undefined)
+            functions[lookup] = [pack];
         else
-            return token.value;
+            functions[lookup].push(pack);
     };
 
-    const getTableFormat = (table, formatter = val => val.toString()) => {
+    const addFunction = (lookup, executor, checker, informer, functions = FUNCTIONS) => {
+        addFunctionPack(lookup, {executor, checker, informer}, functions);
+    };
+
+    const innertExecutor = _ => _;
+    const innertChecker = _ => true;
+    const innertInformer = _ => "";
+
+    const addDummyCast = (from, to, functions = FUNCTIONS) => {
+        addFunction(castLookup(from, to), innertExecutor, innertChecker, innertInformer, functions);
+    };
+
+    const lookupFunction = (lookup, args, context, functions = FUNCTIONS) => {
+        const found = functions[lookup];
+        if(found !== undefined)
+        {
+            for(const fn of found)
+                if(fn.checker(lookup, args, context, functions))
+                    return fn;
+        }
+
+        return undefined;
+    };
+    
+    const executeCast = (from, to, val, args, context, state = {error: 0}, functions = FUNCTIONS) => {
+        const found = lookupFunction(castLookup(from, to), args, context, functions);
+        if(found === undefined)
+        {
+            state.error = 1;
+            return undefined;
+        }
+
+        return fn.executor.apply(context, [val]);
+    };
+    
+    const gatherInfo = (lookup, args, context, functions = FUNCTIONS) =>
+    {
+        const found = functions[lookup];
+        if(found === undefined)
+            return [];
+
+        return found.map(fn => fn.informer(lookup, args, context, functions));
+    };
+
+    //Should be in lib
+    const Sequence = (acessor, length) => ({at: acessor, length});
+    const arraySequence = (array) => Sequence(i => array[i], array.length);
+    const constantSequence = (val, length = Infinity) => Sequence(_ => val, length);
+
+    const castAll = (types, args, context, functions) => 
+    {
+        assert(args.length <= types.length);
+        const state = {error: 0};
+
+        return args.map((arg, i) => {
+            const to = types.at(i);
+            if(arg.type == to)
+                return arg; //PROBLEMS WITH REFERENCE TYPES
+
+            const val = executeCast(arg.type, to, arg.val, args, context, state, functions);
+            assert(state.error == 0);
+            return makeValue(to, val);
+        });
+    };
+
+    const executeFunction = (lookup, args, context, state = {error: 0}, functions = FUNCTIONS) => {
+        const pack = lookupFunction(lookup, args, context, functions);
+        if(pack === undefined)
+        {
+            state.error = gatherInfo(lookup, args, context, functions);
+            return undefined;
+        }
+
+        return pack.executor.apply(context, args);
+    };
+
+    const typeChecker = (types) => (lookup, args, context, functions) => {
+        if(types.length !== args.length && types.length !== Infinity)
+            return false;
+
+        for(let i = 0; i < args.length; i++)
+        {
+            const from = args[i].type;
+            const to = types.at(i);
+            if(from !== to)
+            {
+                const found = lookupFunction(castLookup(from, to), args, context, functions);
+                if(found === undefined)
+                    return false;
+            }
+        }
+
+        return true;
+    };
+
+    const typeExecutor = (fn, types, functions) => function(...args) {
+        const converted = castAll(types, args, this, functions);
+        return fn.apply(this, converted);
+    };
+    
+    const formatFunctionTypes = (types) => {
+        if(types.length === 0)
+            return '';
+        
+        if(types.lenght === Infinity)
+            return `<${types.at(0)}>...`;
+
+        let accumulated = `<${types.at(0)}>`;
+        for(let i = 1; i < types.length; i++)
+            accumulated += `, <${types.at(i)}>`;
+        
+        return accumulated;
+    };
+
+    const informAttempted = (types, lookup) => {
+        return `${lookup} (${formatFunctionTypes(types)}) : `;
+    };
+    
+    const informNumberOfArguments = (types, args) => {
+        return `Number of arguments doesnt match: required ${types.length} got ${args.length}`;
+    };
+    
+    const informTypeMissmatch = (types, args, context, functions) => {
+        assert(types.length <= args.length);
+
+        for(let i = 0; i < args.length; i++)
+        {
+            const from = args[i].type;
+            const to = types.at(i);
+            if(from !== to)
+            {
+                const found = lookupFunction(castLookup(from, to), args, context, functions);
+                if(found === undefined)
+                    return `Cannot convert argument ${i} from <${from}> to <${to}>`;
+            }
+        }
+
+        return '';
+    };
+
+    const typeInformer = (types) => (lookup, args, context, functions) => {
+        const baseInfo = informAttempted(types, lookup);
+        if(types.length !== args.length && type.length !== Infinity)
+            return baseInfo + informNumberOfArguments(types, args);
+
+        return baseInfo + informTypeMissmatch(types, args, context, functions);
+    };
+
+    const typeCheckedFn = (fn, types, functions = FUNCTIONS) => {
+        const indexableTypes = Array.isArray(types) ? arraySequence(types) : types;
+        return {
+            checker: typeChecker(indexableTypes),
+            executor: typeExecutor(fn, indexableTypes, functions),
+            informer: typeInformer(indexableTypes),
+        };
+    };
+
+    const extractPair = (pair) => {
+        const entries = Object.entries(pair);
+        assert(entries.length == 1);
+        return entries[0];
+    };
+
+    const addTypedFn = (lookupFnPair, types, potentialFn = undefined, functions = FUNCTIONS) => {
+        let [lookup, fn] = extractPair(lookupFnPair);
+        if(potentialFn !== undefined)
+            fn = potentialFn;
+
+        addFunctionPack(lookup, typeCheckedFn(fn, types), functions);
+    };
+
+
+    //FORMATS
+    const OFFSET = '   ';
+    const NEWLINE = '\n';
+
+    const offsetOnce = (text, offsetWith, newline = NEWLINE) =>
+    {
+        let accumulated = '';
+        let i = 0;
+        for(;;)
+        {
+            const newI = text.indexOf(newline, i + 1);
+            if(newI === -1)
+                break;
+
+            accumulated += offsetWith + text.slice(i, newI);
+            i = newI;
+        }
+
+        accumulated += offsetWith + text.slice(i, text.lenght);
+        return accumulated;
+    };
+
+    const offset = (text, offsetWith, count, newline = NEWLINE) => 
+        offsetOnce(text, offsetWith.repeat(count), newline);
+
+    const getTableInfo = (table, extractCols = val => val, formatter = val => val.toString()) => {
+        if(table.length === 0)
+            return [];
+
+        const maxOffsets = Array(extractCols(table[0]).length).fill(0);
+
+        for(const row of table)
+        {
+            const cols = extractCols(row);
+            for(let i = 0; i < cols.length; i++)
+            {
+                const formatted = formatter(cols[i], i);
+                const len = formatted.length;
+                if(len > maxOffsets[i])
+                    maxOffsets[i] = len;
+            }
+        }
+
+        return maxOffsets;
+    };
+
+    const getTableFormat = (table, extractCols = val => val, formatter = val => val.toString()) => {
         if(table.length === 0)
             return {rows: [], offsets: []};
 
         const valueTable = [];
-        const maxOffsets = Array(table[0].length).fill(0);
+        const maxOffsets = Array(extractCols(table[0]).length).fill(0);
 
         for(const row of table)
         {
-            const valueRow = Array(row.length);
-            for(let i = 0; i < row.length; i++)
+            const cols = extractCols(row);
+            const valueRow = Array(cols.length);
+            for(let i = 0; i < cols.length; i++)
             {
-                valueRow[i] = formatter(row[i]);
+                valueRow[i] = formatter(cols[i]);
                 const len = valueRow[i].length;
                 if(len > maxOffsets[i])
                     maxOffsets[i] = len;
@@ -1135,21 +1256,71 @@ function import_parsers(lib)
         return {rows: valueTable, offsets: maxOffsets};
     };
 
-    const formatMatrix = (matrix, newline = '\n', separate = ' ', offsetWith = '   ', offsetLevel = 0) =>
+    const isToken = (token) => {
+        return (typeof(token) === 'object') && (token !== null) && ('ib' in token) && ('type' in token) && ('val' in token);
+    };
+
+    const formatToken = (token, newline = '\n', offsetWith = '   ', padTypeTo = 0, padSizeTo = 0, offsetLevel = 0) =>
     {
-        const tableFormat = getTableFormat(matrix.value, val => val.value.toString());
+        assert(token && isToken(token));
+
+        const type = `'${token.type}'`.padEnd(padTypeTo);
+        const size = `(${token.ib}, ${token.ie})`.padEnd(padSizeTo);
+
+        const isT = isToken(token.val);
+        const isA = Array.isArray(token.val);
+
+        if(!isT && !isA)
+            return `{${type} ${size} : ${lib.debug.format(token.val)}}`;
+            
+        const offset = offsetWith.repeat(offsetLevel);
+        const formatSingle = (token) => {
+            const formated = formatToken(token, newline, offsetWith, 0, 0, offsetLevel + 1);
+            return offsetOnce(formated, offset + offsetWith, newline);
+        };
+
+        if(isT)
+            return `{${type} ${size} : {..}}${newline + formatSingle(token.val)}`;
+
+        //isA
+        if(token.val.length === 0)
+            return `{${type} ${size} : []}`;
+
+        if(token.val.length === 1)
+            return `{${type} ${size} : [..]}${newline + formatSingle(token.val[0])}`;
+
+        const tableInfo = getTableInfo(token.val, val => [val.type, [val.ib, val.ie]]);
+        const maxTypeLen = tableInfo[0] + 2;
+        const maxSizeLen = tableInfo[1] + 3; //4 - 1
+
+        let accumulated = `{${type} ${size}} : [` + newline;
+        const ender = ',' + newline;
+        const greaterOffset = offset + offsetWith;
+        for(const val of token.val)
+        {
+            const formated = formatToken(val, newline, offsetWith, maxTypeLen, maxSizeLen, offsetLevel + 1);
+            accumulated += offsetOnce(formated, greaterOffset, newline) + ender;
+        }
+
+        accumulated += offset + ']';
+        return accumulated;    
+    };
+
+    const formatMatrix = (matrix, newline = NEWLINE, separate = ' ', offsetWith = OFFSET, offsetLevel = 0) =>
+    {
+        const tableFormat = getTableFormat(matrix.val);
 
         const contextOffset = offsetWith.repeat(offsetLevel);
         let accumulated = contextOffset + '[[' + newline;
 
         for(const row of tableFormat.rows)
         {
-            const len = row.length;
-            if(len == 0)
+            const width = row.length;
+            if(width == 0)
                 continue;
 
             accumulated += offsetWith + contextOffset + row[0].padStart(tableFormat.offsets[0]);
-            for(let i = 1; i < len; i++)
+            for(let i = 1; i < width; i++)
                 accumulated += separate + row[i].padStart(tableFormat.offsets[i]);
             
             accumulated += ',' + newline;
@@ -1158,12 +1329,12 @@ function import_parsers(lib)
         return accumulated + ']]';
     };
     
-    const formatArray = (token, separate = ', ', offsetWith = '   ', offsetLevel = 0) =>
+    const formatArray = (token, separate = ', ', offsetWith = OFFSET, offsetLevel = 0) =>
     {
         const contextOffset = offsetWith.repeat(offsetLevel);
         let accumulated = contextOffset + '[';
 
-        const array = token.value;
+        const array = token.val;
         const len = array.length;
         if(len != 0)
         {
@@ -1174,161 +1345,304 @@ function import_parsers(lib)
 
         return accumulated + ']';
     };
+    
     const formatValue = (token) => {
         switch(token.type)
         {
             case 'matrix': return formatMatrix(token);
             case 'array': return formatArray(token);
-            case 'num': return token.value.toString();
+            case 'decimal': return token.val.toString();
             case 'unset': return 'unset';
             case 'void': return 'void';
             default: return '<error>';
         }
     };
     
-    const plainToMatrix = plain => {
-        return makeValue("matrix", plain.map((row) => 
-            row.map(val => makeValue("num", val))));
+    const formatErrorGather = (lookup, gathered) => {
+        let accumulated = `Could not match expression: ${lookup} (...)`;
+        if(gathered.size === 0)
+            return ` : No such expression defined (in this scope)`;
+        
+        accumulated += `\n${OFFSET}Tried:\n`;
+
+        const offset = OFFSET + OFFSET;
+        for(const info of gathered)
+            accumulated += offsetOnce(info, offset) + NEWLINE;
+
+        return accumulated;
+    };
+
+    //SCOPE
+    const copy = object => lib.object.copy(object);
+    const makeValue = (type, val = null) => ({type: type, val: val});
+    const makeScopeContext = (outer = undefined) => ({local: {}, outer});
+
+    const scopeGet = (scope, what) => {
+        const local = scope.local[what];
+        if(local !== undefined)
+            return local;
+        
+        if(scope.outer === undefined)
+            return undefined;
+        
+        return scopeGet(scope.outer, what);
+    };
+    
+    const scopeSet = (scope, what, val) => {
+        scope.local[what] = val;
+    };
+
+    //EVALUATION
+    const Decimal = val => makeValue('decimal', val);
+    const Matrix = val => makeValue('matrix', val);
+    const ArrayVal = val => makeValue('array', val);
+    const Void = () => makeValue('void', null);
+    const Unset = (name) => makeValue('unset', name);
+
+    const variadicArgs = (flatTypes, variadicType) => {
+        if(flatTypes.lenght == 0)
+            return constantSequence(variadicType);
+
+        return Sequence(i => {
+            if(i < flatTypes.lenght)
+                return flatTypes[i];
+            else
+                return variadicType;
+        }, Infinity);
+    };
+
+    function assign(l, r) {
+        assert(l.type === r.type);
+        l.val = r.val;
+        return l;
+    }
+    
+    function deepAssign(l, r) {
+        assert(l.type === r.type);
+        l.val = copy(r.val);
+        return l;
+    }
+
+    function define(l, r) {
+        assert(l.type === "unset");
+        const rightCopy = copy(r);
+        scopeSet(this.scope, l.val, rightCopy);
+        return rightCopy;
+    }
+
+    addDummyCast('decimal', 'decimal');
+    addDummyCast('matrix', 'matrix');
+    addDummyCast('array', 'array');
+
+    addTypedFn({'=': assign},     ['decimal', 'decimal']);
+    addTypedFn({'=': deepAssign}, ['matrix', 'matrix']);
+    addTypedFn({'=': deepAssign}, ['array', 'array']);
+    
+    addTypedFn({':=': define}, ['unset', 'decimal']);
+    addTypedFn({':=': define}, ['unset', 'matrix']);
+    addTypedFn({':=': define}, ['unset', 'array']);
+
+    addTypedFn({'+': (l, r) => Decimal(l.val + r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'-': (l, r) => Decimal(l.val - r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'*': (l, r) => Decimal(l.val * r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'/': (l, r) => Decimal(l.val / r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'^': (l, r) => Decimal(Math.pow(l.val, r.val))}, ['decimal', 'decimal']);
+    addTypedFn({'%': (l, r) => Decimal(l.val % r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'&': (l, r) => Decimal(l.val & r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'|': (l, r) => Decimal(l.val | r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'^|': (l, r) => Decimal(l.val ^ r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'&&': (l, r) => Decimal(l.val && r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'||': (l, r) => Decimal(l.val || r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'>>': (l, r) => Decimal(l.val >> r.val)}, ['decimal', 'decimal']);
+    addTypedFn({'<<': (l, r) => Decimal(l.val << r.val)}, ['decimal', 'decimal']);
+    
+    addTypedFn({'+=': (l, r) => {l.val += r.val; return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'-=': (l, r) => {l.val -= r.val; return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'*=': (l, r) => {l.val *= r.val; return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'/=': (l, r) => {l.val /= r.val; return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'^=': (l, r) => {l.val ^= Math.pow(l.val, r.val); return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'%=': (l, r) => {l.val %= r.val; return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'&=': (l, r) => {l.val &= r.val; return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'|=': (l, r) => {l.val |= r.val; return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'^|=': (l, r) => {l.val |= r.val; return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'>>=': (l, r) => {l.val >>= r.val; return l;}}, ['decimal', 'decimal']);
+    addTypedFn({'<<=': (l, r) => {l.val <<= r.val; return l;}}, ['decimal', 'decimal']);
+
+    const mWidth = (matrix) => mtx.width(matrix.val);
+    const mHeight = (matrix) => mtx.height(matrix.val);
+
+    const matrixSizeError = (what, left, right) => {
+        const w1 = mWidth(left);
+        const h1 = mHeight(left);
+        const w2 = mWidth(right);
+        const h2 = mHeight(right);
+
+        return `${what} cannot be applied on matrices of incorrect size: ${w1}x${h1} ${op} ${w2}x${h2}`;
+    };
+    
+    const matrixOpSizeError = (op, left, right) => matrixSizeError('Operator ' + op, left, right);
+    const matrixFnSizeError = (fn, left, right) => matrixSizeError('Function ' + fn, left, right);
+
+    const equalMatrixSizeCheck = (op, left, right) => {
+        if(mWidth(left) !== mWidth(right) ||
+           mHeight(left) !== mHeight(right))
+            throw new Error(matrixOpSizeError(op, left, right));
+    };
+
+    addTypedFn({'+': null}, ['matrix', 'matrix'], (l, r) => {
+        equalMatrixSizeCheck('+', l, r);
+        return Matrix(mtx.addMatrix(l.val, r.val));
+    });
+
+    addTypedFn({'-': null}, ['matrix', 'matrix'], (l, r) => {
+        equalMatrixSizeCheck('-', l, r);
+        return Matrix(mtx.subMatrix(l.val, r.val));
+    });
+    
+    const mulMatrixt = (l, r) => {
+        if(mHeight(l) !== mWidth(r))
+            throw new Error(matrixOpSizeError('*', l, r));
+
+        return Matrix(mtx.mulMatrix(l.val, r.val));
+    };
+
+    addTypedFn({'*': mulMatrixt}, ['matrix', 'matrix']);
+    
+    addTypedFn({'*': (l, r) => Matrix(mtx.mulNum(l.val, r.val))}, ['matrix', 'num']);
+    addTypedFn({'*': (l, r) => Matrix(mtx.mulNum(r.val, l.val))}, ['num', 'matrix']);
+
+    
+    const sumVariadicDecimal = (...args) => {
+        return args.reduce((l, r) => Decimal(l.val + r.val), Decimal(0));
+    };
+    
+    const productVariadicDecimal = (...args) => {
+        return args.reduce((l, r) => Decimal(l.val * r.val), Decimal(1));
+    };
+
+    addTypedFn({'sum': sumVariadicDecimal}, variadicArgs(['decimal'], 'decimal'));
+    addTypedFn({'product': productVariadicDecimal}, variadicArgs(['decimal'], 'decimal'));
+    
+    const sumVariadicMatrix = (...args) => {
+        assert(args.length > 0);
+
+        const accumulated = Matrix(mtx.copy(args[0].val));
+        for(let i = 1; i < args.length; i++)
+        {
+            const other = args[i];
+            if(mWidth(accumulated) !== mWidth(other) ||
+               mHeight(accumulated) !== mHeight(other))
+                throw new Error(matrixFnSizeError('product', accumulated, other));
+
+            mtx.addMatrixAssign(accumulated.val, other.val);
+        }
+        return accumulated;
+    };
+    
+    const productVariadicMatrix = (...args) => {
+        assert(args.length > 0);
+
+        let res = args[0];
+        for(let i = 1; i < args.length; i++)
+            res = mulMatrixt(res, args[i]);
+        
+        return res;
+    };
+
+    addTypedFn({'sum': sumVariadicMatrix}, variadicArgs(['matrix'], 'matrix'));
+    addTypedFn({'product': productVariadicMatrix}, variadicArgs(['matrix'], 'matrix'));
+
+    const subscript = (left, right) => {
+
+        const rvalue = right.val;
+        
+        if(rvalue.length == 0)
+            throw new Error(`Operator [] cannot be used with empty 0 indecies while performing ${formatValue(left)}${formatArray(right)}`);
+
+        for(const index of rvalue)
+            if(index.type !== "num")
+                throw new Error(`Operator [] cannot be used with index of type <${index.type}> while performing ${formatValue(left)}${formatArray(right)}`);
+
+
+        if(left.type == "array")
+        {
+            let current = left;
+            for(const index of rvalue)
+            {
+                const i = index.val;
+                if(current.type !== "array")
+                    throw new Error(`Operator [] with multiple indicies ${formatArray(right)} cannot be used on array ${formatArray(left)} with subtype <${current.type}>`);
+    
+                if(i > current.val.length || i < 1)
+                    throw new Error(`Operator [] index ${i} out of range of array ${formatArray(current)} while performing ${formatArray(left)}${formatArray(right)}`);
+
+                current = current.val[i - 1];
+            }
+            return copy(current);
+        }
+        
+        if(left.type == "matrix")
+        {
+            const matrix = left.val;
+            const width = mWidth(right);
+            const height = mHeight(right);
+            
+            if(rvalue.length > 2)
+                throw new Error(`Operator [] max two indecies to array subscript while performing ${formatMatrix(left)}${formatArray(right)}`);
+
+            const i = rvalue[0].val;
+            if(i > height || i < 1)
+                throw new Error(`Operator [] index ${i} out of range of matrix ${formatMatrix(left)}`);
+
+            if(rvalue.length == 1)
+                return makeValue("array", matrix[i - 1].map(val => makeValue("num", val)));
+
+            const j = rvalue[0].val;
+            if(j > width || j < 1)
+                throw new Error(`Operator [] index ${j} out of range of matrix ${formatMatrix(left)}`);
+                
+            return makeValue("num", matrix[i - 1][j - 1]); 
+        }
     };
 
     const pow = (left, right) => {
+        const toPow = right.val;
         if(left.type == 'num')
-            return makeValue("num", Math.pow(left.value, right.value));
+            return makeValue("num", Math.pow(left.val, toPow));
         
-        if(right.value !== -1)
-            throw new Error("Currently only inverse matrix supported");
-
-        const plain = matrixToPlain(left);
-        const changed = gauss(plain);
-        return plainToMatrix(changed);
-    };
-
-
-    const matrixMulVal = (matrix, val) => {
-        const mcopy = copy(matrix);
-        for(const row of mcopy.value)
-            for(const col of row)
-                col.value *= val;
+        if(!Number.isInteger(toPow))
+            throw new Error("Only whole matrix powers supported");
         
-        return mcopy;
-    };
-
-    
-    const twoDArray = (n, m, filler = () => 0) =>
-    {
-        const resultValue = [];
-        for(let i = 0; i < n; i++)
+        const state = mtx.State();
+        const product = mtx.safe.pow(left.val, right.val, state);
+        switch(state.error)
         {
-            const row = new Array(m);
-            for(let i = 0; i < m; i++)
-                row[i] = filler();
-
-            resultValue.push(row);
+            case mtx.ERROR.SINGULAR: throw new Error(`Cannot find inverse of singular matrix ${formatMatrix(left)}`);
+            case mtx.ERROR.DIMENSIONS: throw new Error(matrixSizeError('*', left, left));
         }
-
-        return resultValue;
+        return makeValue("matrix", product);
     };
 
-    const matrixMulMatrix = (matrix1, matrix2) => {
-        const rows1 = matrix1.value;
-        const rows2 = matrix2.value;
-
-        if(rows1[0].length !== rows2.length)
-            throw new Error(`Operator * cannot be applied on matrices of size ${rows1.length}x${rows1[0].length} * ${rows2.length}x${rows2[0].length}`);
-
-        const resRows = rows1.length;
-        const resCols = rows2[0].length;
-        const sumOver = rows2.length;
-        
-        const resultValue = twoDArray(resRows, resCols, () => makeValue("num", 0));
-
-        for(let i = 0; i < resRows; i++)
-            for(let j = 0; j < resCols; j++)
-            {
-                let sum = 0;
-                for(let k = 0; k < sumOver; k++)
-                    sum += rows1[i][k].value *  rows2[k][j].value;
-
-                resultValue[i][j].value = sum;
-            }
-
-        return makeValue("matrix", resultValue);
-    };
-
-    const matrixAddMatrix = (matrix1, matrix2) => {
-        const mcopy = copy(matrix1);
-        const rows1 = mcopy.value;
-        const rows2 = matrix2.value;
-        
-        if(rows1.length !== rows2.length ||
-            rows1[0].length !== rows2[0].length)
-            throw new Error(`Operator +/- cannot be applied on matrices of size ${rows1.length}x${rows1[0].length} +/- ${rows2.length}x${rows2[0].length}`);
-
-        const colCount = rows1[0].length;
-        for(let i = 0; i < rows1.length; i++)
-            for(let j = 0; j < colCount; j++)
-                rows1[i][j].value += rows2[i][j].value;
-
-        return mcopy;
-    };
-
-    const assign = (left, right) => {
-        left.value = right.value;
-        return copy(left);
-    };
-    
-    const define = (left, right, scope) => {
-        if(left.type !== "unset")
-            throw new Error("Only previously undeclared ids can be declared");
-
-        const rightCopy = copy(right);
-        scopeSet(scope, left.value, rightCopy);
-        return copy(right);
-
-
-        
-    };
-
-    const performExpression = (left, op, right, scope) =>
+    const performExpression = (lookup, args, scope, context = {}) =>
     {
-        const opText = op.value.value;
-
-        if(!isOperatorDefined(opText, left.type, right.type))
-            throw new Error(`Operator ${opText} cannot be applied on types <${left.type}> ${opText} <${right.type}>`);
-
-        switch(opText)
-        {
-            case "+": return add(left, right);
-            case "-": return sub(left, right);
-            case "*": return mul(left, right);
-            case "/": return div(left, right);
-            case "^": return pow(left, right);
-
-            case "+=": return assign(left, add(left, right));
-            case "-=": return assign(left, sub(left, right));
-            case "*=": return assign(left, mul(left, right));
-            case "/=": return assign(left, div(left, right));
-            case "^=": return assign(left, pow(left, right));
-
-            case "=": return assign(left, right);
-
-            case ":=": return define(left, right, scope);
-        }
-
-        throw new Error(`Operator ${opText} not yet supported`);
+        const state = {error: 0};
+        const res = executeFunction(lookup, args, {scope, context}, state);
+        if(state.error)
+            throw new Error(formatErrorGather(lookup, state.error));
+            
+        return res;
     };
 
     const evaluateExpression = (token, scope) => 
     {
-        if(token.value.length === 0)
-            return makeToken("void");
+        assert(token.val.length !== 0);
         
-        let res = evaluateAny(token.value[0], scope);
+        let res = evaluateAny(token.val[0], scope);
         let lastOp;
         
-        for(let i = 1; i < token.value.length; i++)
+        for(let i = 1; i < token.val.length; i++)
         {
-            const curr = evaluateAny(token.value[i], scope);    
+            const curr = evaluateAny(token.val[i], scope);    
             if(curr.type == "operator")
             {
                 if(lastOp !== undefined)
@@ -1341,114 +1655,151 @@ function import_parsers(lib)
                 if(lastOp === undefined)
                     throw new Error("Only simple operator evaluation supported");
 
-                res = performExpression(res, lastOp, curr, scope);
+                assert(lastOp.type == "operator");
+                res = performExpression(lastOp.val.val, [res, curr], scope);
                 lastOp = undefined;
             }
         }
 
         return res;
     };
+    
+    const evaluateFunction = (token, scope) => 
+    {
+        assert(token.val.length == 2);
+        const [id, args] = token.val;
+
+        assert(id.type == "id");
+        assert(args.type == "args");
+
+        const evaluatedArgs = [];
+        for(const arg of args.val)
+            evaluatedArgs.push(evaluateAny(arg, scope));
+
+        return performExpression(id.val, evaluatedArgs, scope);
+    };
 
     const evaluateId = (token, scope) =>
     {
-        const found = scopeGet(scope, token.value);
+        const found = scopeGet(scope, token.val);
         if(found === undefined)
-            return makeValue("unset", token.value);
+            return Unset(token.val);
 
         return found;
     };
     
-    const evaluateDecimal = token => makeValue("num", Number(token.value));
+    const evaluateDecimal = token => Decimal(Number(token.val));
     const evaluateOperator = token => copy(token);
     
     const evaluateArray = (token, scope) =>
     {
         const ret = [];
 
-        for(const elem of token.value)
+        for(const elem of token.val)
             ret.push(evaluateAny(elem, scope));
 
-        return makeValue("array", ret);
+        return ArrayVal(ret);
     };
     
     const evaluateMatrix = (token, scope) =>
     {
         const matrixRes = [];
 
-        let lastSize = 0;
-        for(const rows of token.value)
+        let firstSize = 0;
+        for(const rows of token.val)
         {
-            if(lastSize == 0)
-                lastSize = rows.value.length;
-            else if(lastSize !== rows.value.length)
+            if(firstSize == 0)
+            {
+                firstSize = rows.val.length;
+                if(firstSize == 0)
+                    throw new Error("Empty matrix disallowed");
+            }
+            else if(firstSize !== rows.val.length)
                 throw new Error("All matrix rows need to have the same number of elements");
 
             const rowRes = [];
-            for(const col of rows.value)
+            for(const elem of rows.val)
             {
-                const colValue = evaluateAny(col, scope);
-                if(colValue.type !== "num")
+                const elemValue = evaluateAny(elem, scope);
+                if(elemValue.type !== "decimal")
                     throw new Error("All matrix elements need to evaluate to a number");
 
-                rowRes.push(colValue);
+                rowRes.push(elemValue.val);
             }
+
 
             matrixRes.push(rowRes);
         }
 
-        return makeValue("matrix", matrixRes);
+        return Matrix(matrixRes);
     };
     
-    const evaluateSequence = (token, scope) =>
+    const evaluateLine = (token, scope) =>
     {
-        const noLast = token.value.length - 1;
-        if(noLast < 0)
-            return makeValue("void");
+        if(token.val.length !== 0)
+            evaluateAny(token.val[0], scope);
 
-        for(let i = 0; i < noLast; i++)
-            evaluateAny(token.value[i], scope);
-        
-        return evaluateAny(token.value[noLast], scope);
+        return Void();
     };
 
     const evaluateScope = (token, scope) =>
     {
-        const len = token.value.length;
-        if(len == 0)
-            return makeValue("void");
+        const len = token.val.length;
+        if(len === 0)
+            return Void();
 
-        if(len > 1)
-            throw new Error("Should not happen");
-        
         const newScope = makeScopeContext(scope);
-        return evaluateAny(token.value[0], newScope);
+        const noLast = len - 1;
+        for(let i = 0; i < noLast; i++)
+            evaluateAny(token.val[i], newScope);
+        
+        return evaluateAny(token.val[noLast], newScope);
     };
     
     const evaluateParens = (token, scope) =>
     {
-        return evaluateAny(token.value[0], scope);
+        assert(token.val.lenght === 1);
+        return evaluateAny(token.val[0], scope);
     };
 
     const evaluateAny = (token, scope = makeScopeContext()) =>
     {
-        if(!token)
-            return makeValue("void");
-
+        assert(token && isToken(token));
         switch(token.type)
         {
             case "id": return evaluateId(token, scope);
             case "decimal": return evaluateDecimal(token, scope);
             case "operator": return evaluateOperator(token, scope);
-            case "scope": return evaluateScope(token, scope);
+            case "line": return evaluateLine(token, scope);
             case "parens": return evaluateParens(token, scope);
-            case "sequence": return evaluateSequence(token, scope);
+            case "script":
+            case "scope": return evaluateScope(token, scope);
             case "expression": return evaluateExpression(token, scope);
+            case "function": return evaluateFunction(token, scope);
             case "array": return evaluateArray(token, scope);
             case "matrix": return evaluateMatrix(token, scope);
             default: return makeValue("void");
         }
     };
 
+    const arrayToPlain = array => {
+        const len = array.val.length;
+        const arrayRes = new Array(len);
+
+        for(let i = 0; i < len; i++)
+            arrayRes[i] = toPlain(val);
+
+        return arrayRes;
+    }; 
+
+    const toPlain = (token) => {
+        if(token.type === 'matrix')
+            return mtx.copy(matrix.val);
+        if(token.type === 'array')
+            return arrayToPlain(token);
+        else
+            return token.val;
+    };
 
     return {
         formatValue,

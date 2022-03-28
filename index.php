@@ -15,37 +15,25 @@
                 <h1 class="main__title">Gauss</h1>
                 
                 <textarea class="main__input" data-id="input">
-A := {
-    x := 1;
-    x += 1;
-
-    X := [[
-        0  x  x+2,
-        x  2  2x,
-        x  3x 4,
-    ]];
-
-    X
-};
-
-I := [[
-    1 0 0,
-    0 1 0,
-    0 0 1
+X := [[
+  1 2 3,
+  1 1 1,
+  1 1 1,
 ]];
 
-INV := ((1/2A + I)^(0-1));
-
-E := [[
-   1 1 1 1 1 1, 
-   1 1 1 1 1 1, 
-   1 1 1 1 1 1, 
+Y := [[
+  1 2 3,
+  1 1 1,
+  1 1 1,
 ]];
 
-D := (I * E);
+Z := [[
+  1 2 3
+]];
 
-[A, I, D, INV]
-                
+RES := product(X, Y, Z);
+
+[X, Y, Z, RES, product(1, 2, 3)]
                 </textarea>
 
                 <div class="main__controls">
@@ -56,8 +44,10 @@ D := (I * E);
                     <label for="show_parse">Show parser result</label>
                 </div>
 
-                <pre class="main__output" data-id="output">
-                </pre>
+                <div>
+                    <div class="main__output" data-id="output">
+                    </div>
+                </div>
             </div>
         </main>
 
