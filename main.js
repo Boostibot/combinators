@@ -1,13 +1,11 @@
-function import_main(lib)
+function importMain(lib)
 { 
-    const NAME = 'main';
-    if(areImported(lib, 'imported_base') == false ||
-       importedOk(lib) == false)
-        return importError(lib, NAME);
+    requireLib(lib, '@fastStart');
 
     const query = lib.query;
     const selector = lib.selector;
-    const parsers = import_parsers(lib);
+    const parsers = importParsers(lib);
+    const evaluators = importEvaluators(lib);
 
     function parse()
     {
@@ -15,27 +13,23 @@ function import_main(lib)
         const output = query.single(selector.data_id('output'));
         const checkbox = query.single(selector.data_id('show_parse'));
 
-        // try 
+        try 
         {
             const parsed = parsers.parse(input.value);
-            if(parsed.error)
-                throw new Error(parsed.singular.errorInfo);
-            
             if(checkbox.checked)
             {
-                console.log(parsed);
-                output.textContent = parsers.formatToken(parsed.result);
+                output.textContent = evaluators.formatToken(parsed);
             }
             else
             {
-                const evaluated = parsers.evaluate(parsed.result);
-                const sringified = parsers.formatValue(evaluated);
+                const evaluated = evaluators.evaluate(parsed);
+                const sringified = evaluators.formatValue(evaluated);
                 output.textContent = sringified;
             }
         }
-        // catch(error)
+        catch(error)
         {
-            // output.textContent = 'ERROR: ' + error.message;
+            output.textContent = 'ERROR: ' + error.message;
         }
     }
 
@@ -47,6 +41,5 @@ function import_main(lib)
     }
 
     add_events();
-    lib.meta.addProperty(lib, NAME);
-    return importOk(lib, NAME);
+    return lib;
 }

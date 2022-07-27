@@ -15,6 +15,9 @@
                 <h1 class="main__title">Gauss</h1>
                 
                 <textarea class="main__input" data-id="input">
+{} + {}; {};;; {} {}
+                </textarea>
+<!-- 
 X := [[
   1 2 3,
   1 1 1,
@@ -34,8 +37,7 @@ Z := [[
 RES := product(X, Y, Z);
 
 [X, Y, Z, RES, product(1, 2, 3)]
-                </textarea>
-
+-->
                 <div class="main__controls">
                     <button class="main__calculate" data-id="calculate">
                         Go

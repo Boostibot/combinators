@@ -3,23 +3,6 @@ function importMultiarray(ARRAY_ = Array, IS_ARRAY_ = Array.isArray)
     let ARRAY = ARRAY_;
     let IS_ARRAY = IS_ARRAY_;
 
-    
-
-    const filterInplace = (arr, filter) => {
-        let filledTo = 0;
-        for(let i = 0; i < arr.length; i++)
-        {
-            if(filter(arr[i], i, arr))
-            {
-                arr[filledTo] = arr[i];
-                filledTo++;
-            }
-        }
-
-        arr.length = filledTo;
-        return arr;
-    };
-
     const resize = (arr, size) => 
     {
         if(!IS_ARRAY(arr))

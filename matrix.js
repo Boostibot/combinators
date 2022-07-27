@@ -13,7 +13,7 @@ function importMatrix(ARRAY_ = Array, COPY_ARRAY_ = row => row.slice())
 
     const assign = (to, from) =>
     {
-        for(let i = 0; i < from.lenght; i++)
+        for(let i = 0; i < from.length; i++)
             result[i] = COPY_ARRAY(from[i]);
 
         return to;

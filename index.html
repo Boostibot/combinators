@@ -18,6 +18,9 @@
                 <h1 class="main__title">Gauss</h1>
                 
                 <textarea class="main__input" data-id="input">
+{} + {}; {};;; {} {}
+                </textarea>
+<!-- 
 X := [[
   1 2 3,
   1 1 1,
@@ -37,8 +40,7 @@ Z := [[
 RES := product(X, Y, Z);
 
 [X, Y, Z, RES, product(1, 2, 3)]
-                </textarea>
-
+-->
                 <div class="main__controls">
                     <button class="main__calculate" data-id="calculate">
                         Go
@@ -62,22 +64,17 @@ RES := product(X, Y, Z);
 <script type="text/javascript" src="js/lib/base.js"        ></script>
 <script type="text/javascript" src="js/lib/vision.js"      ></script>
 <script type="text/javascript" src="js/lib/query.js"       ></script>
-<script type="text/javascript" src="js/lib/attributes.js"  ></script>
+<script type="text/javascript" src="js/lib/selectors.js"   ></script>
 
-<script type="text/javascript" src="js/lib/fast_start.js"      ></script>
+<script type="text/javascript" src="js/lib/fast_start.js"  ></script>
+<script type="text/javascript"> const lib = importFastStart(); </script>
 
+<script type="text/javascript" src="combinators.js" ></script>
 <script type="text/javascript" src="parser.js" ></script>
+<script type="text/javascript" src="evaluator.js" ></script>
 <script type="text/javascript" src="matrix.js" ></script>
 <script type="text/javascript" src="multiarray.js" ></script>
 <script type="text/javascript" src="main.js"  ></script>
-<script type="text/javascript">
-    let lib = createLibrary();
-    import_fastStart(lib);
-    if(importedOk(lib) == false)
-        console.log("import error");
-
-    import_main(lib);
-
-</script>        </div>
+<script type="text/javascript"> importMain(lib); </script>        </div>
     </body>
 </html>
